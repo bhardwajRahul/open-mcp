@@ -1,101 +1,51 @@
-# OpenMCP
+# BoltMCP
 
-https://www.open-mcp.org
+BoltMCP is an enterprise-grade MCP orchestration platform to create, deploy, and manage custom MCP servers on-premises.
 
-OpenMCP is both:
+<!-- ## Demo
 
-1. a standard for converting web APIs into MCP servers
-2. an open source registry of servers which follow the standard
+Video demo of creating and using an MCP server -->
 
-Each OpenMCP server gives MCP clients the ability to make requests to a particular web API in a token-efficient way. Together the servers in the registry represent a broad range of services, empowering the underlying client LLMs to fetch data and perform actions on behalf of their users across many domains.
+## Installation
 
-## Contents
+There are two ways to install and run BoltMCP:
 
-- [Creating a server](#creating-a-server)
-- [Adding OpenMCP servers to MCP clients](#adding-openmcp-servers-to-mcp-clients)
-- [Converting web API -> OpenMCP](#converting-web-api---openmcp)
+### [Testing locally with Docker Compose](./docker-compose/)
 
-## Creating a server
+To take a quick spin on your laptop, install BoltMCP with Docker Compose. This isn’t suitable for production.
 
-https://www.open-mcp.org/servers/creating-a-server
+### [Deploying to production with Helm](./helm-chart)
 
-## Adding OpenMCP servers to MCP clients
+To deploy to a Kubernetes cluster, install BoltMCP with Helm. This is suitable for enterprise production environments.
 
-### Remote hosting
+## For followers of OpenMCP
 
-...
+OpenMCP was an early exploration of techniques in token-management for MCP servers. Since then we’ve spent a lot of time building secure servers and learning from the process, which has evolved the project into what is now called BoltMCP. Thank you for your support and experimentation with OpenMCP, we hope this enthusiasm continues with all the developments we’ve made for this iteration.
 
-### Local hosting
+### What has changed
 
-<div>
-  <a href="https://www.loom.com/share/aa26fed41f084ff1bd115436f9d799dd">
-    <p>Local hosting demo - watch video</p>
-  </a>
-  <a href="https://www.loom.com/share/aa26fed41f084ff1bd115436f9d799dd">
-    <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/aa26fed41f084ff1bd115436f9d799dd-9815ccb91b155b9d-full-play.gif">
-  </a>
-</div>
+**Hosting**
 
-#### Requirements:
+- All software is now self-hosted on-premises
+- Enterprise-grade cloud native infrastructure and integrations
 
-- Node.js v18 or later (includes npx and npm)
+**Transport & authorization**
 
-#### Claude desktop
+- All servers are Streamable HTTP by default
+- All servers are secured with OAuth 2 by default
+- Each server can now interact with multiple upstream APIs with different auth requirements
 
-```bash
-npx @open-mcp/config add {server-id} \
-  ~/Library/Application\ Support/Claude/claude_desktop_config.json \
-  --ENV_VAR=abc123
-```
+**Rich customization**
 
-Now restart Claude desktop to load the tools.
+- You can spin up custom MCP servers on-the-fly with a subset of tools tailored for your specific use-case
+- Tools can now be fully customized with rich transformation of inputs/outputs, and composition of multiple API operations within a single tool, all backed by a declarative json/yaml spec.
+- Tools can be registered up-front, retrieved on demand, or partially registered and lazy-loaded on demand
 
-#### Cursor
+**MCP client playground**
 
-Run this from the root of your project directory or, to add to all cursor projects, run it from your home directory `~`.
+- The application now bundles with an MCP client playground which you can use to chat with your servers
+- The official MCP Inspector is also bundled with the application
 
-```bash
-npx @open-mcp/config add {server-id} \
-  .cursor/mcp.json \
-  --ENV_VAR=abc123
-```
+**Bring your own LLM**
 
-Now go to `Cursor > Settings > Cursor Settings` then click `MCP` to ensure the server is enabled.
-
-#### Other clients
-
-```bash
-npx @open-mcp/config add {server-id} \
-  /path/to/config.json \
-  --ENV_VAR=abc123
-```
-
-#### Alternatives
-
-If you don't want to use the CLI you can use `npm` to install the package manually, then add a `node` command to your client config with an absolute path to `dist/index.js`. See the individual server READMEs for more details.
-
-## Converting web API -> OpenMCP
-
-### REST `openapi.yaml` / `openapi.json`
-
-...
-
-### gRPC `service.proto`
-
-...
-
-### JSON-RPC `openrpc.json`
-
-...
-
-### GraphQL `schema.gql`
-
-...
-
-### SOAP `service.wsdl`
-
-...
-
-### PostgREST `schema.sql`
-
-...
+- Configure an LLM of your choice, self-hosted or cloud, to use for the AI-powered features within the application, including the playground

@@ -1,9 +1,0 @@
-{
-  "type": "object",
-  "properties": {
-    "scope": {
-      "type": "string"
-    }
-  },
-  "required": []
-}
