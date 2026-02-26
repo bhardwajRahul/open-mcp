@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+
+*.json
+!keycloak/clients/*.json
