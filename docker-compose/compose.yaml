@@ -10,8 +10,8 @@ services:
       - POSTGRES_DB=${DB_NAME:?}
       - POSTGRES_USER=${DB_SUPERUSER_USER:?}
       - POSTGRES_PASSWORD=${DB_SUPERUSER_PASSWORD:?}
-      - BOLTMCP_INIT_PLATFORM_USER=${DB_PLATFORM_USER:?}
-      - BOLTMCP_INIT_PLATFORM_PASSWORD=${DB_PLATFORM_PASSWORD:?}
+      - BOLTMCP_INIT_WEB_USER=${DB_WEB_USER:?}
+      - BOLTMCP_INIT_WEB_PASSWORD=${DB_WEB_PASSWORD:?}
       - BOLTMCP_INIT_MCP_SERVER_USER=${DB_MCP_SERVER_USER:?}
       - BOLTMCP_INIT_MCP_SERVER_PASSWORD=${DB_MCP_SERVER_PASSWORD:?}
       - BOLTMCP_INIT_PLAYGROUND_SCHEMA=${DB_PLAYGROUND_SCHEMA:?}
@@ -28,8 +28,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-  migrate:
-    image: europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/boltmcp-platform-migrate:latest
+  boltmcp-web-migrate:
+    image: europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/boltmcp-web-migrate:latest
     !!merge <<: *host-access
     depends_on:
       database:
@@ -38,10 +38,10 @@ services:
       - DB_HOST=database
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:?}
-      - DB_USER=${DB_PLATFORM_USER:?}
-      - DB_PASSWORD=${DB_PLATFORM_PASSWORD:?}
+      - DB_USER=${DB_WEB_USER:?}
+      - DB_PASSWORD=${DB_WEB_PASSWORD:?}
     restart: "no"
-  playground-migrate:
+  boltmcp-playground-migrate:
     image: europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/boltmcp-playground-migrate:latest
     !!merge <<: *host-access
     depends_on:
@@ -55,11 +55,11 @@ services:
       - DB_USER=${DB_PLAYGROUND_USER:?}
       - DB_PASSWORD=${DB_PLAYGROUND_PASSWORD:?}
     restart: "no"
-  platform:
-    image: europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/boltmcp-platform:latest
+  boltmcp-web:
+    image: europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/boltmcp-web:latest
     !!merge <<: *host-access
     depends_on:
-      migrate:
+      boltmcp-web-migrate:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy
@@ -67,25 +67,25 @@ services:
       - DB_HOST=database
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:?}
-      - DB_USER=${DB_PLATFORM_USER:?}
-      - DB_PASSWORD=${DB_PLATFORM_PASSWORD:?}
+      - DB_USER=${DB_WEB_USER:?}
+      - DB_PASSWORD=${DB_WEB_PASSWORD:?}
       - OIDC_PROVIDER=${OIDC_PROVIDER:?}
       - OIDC_ISSUER_URL=${OIDC_ISSUER_URL:?}
-      - OIDC_CLIENT_ID=${OIDC_PLATFORM_CLIENT_ID:?}
-      - OIDC_CLIENT_SECRET=${OIDC_PLATFORM_CLIENT_SECRET:?}
-      - PLATFORM_AUTH_SECRET=${PLATFORM_AUTH_SECRET:?}
-      - PLATFORM_BASE_URL=${PLATFORM_BASE_URL:?}
+      - OIDC_CLIENT_ID=${OIDC_WEB_CLIENT_ID:?}
+      - OIDC_CLIENT_SECRET=${OIDC_WEB_CLIENT_SECRET:?}
+      - WEB_AUTH_SECRET=${WEB_AUTH_SECRET:?}
+      - WEB_BASE_URL=${WEB_BASE_URL:?}
       - MCP_SERVER_BASE_URL=${MCP_SERVER_BASE_URL:?}
       - PLAYGROUND_BASE_URL=${PLAYGROUND_BASE_URL:?}
       - MCP_INSPECTOR_BASE_URL=${MCP_INSPECTOR_BASE_URL:?}
       - MCP_INSPECTOR_PROXY_AUTH_TOKEN=${MCP_INSPECTOR_PROXY_AUTH_TOKEN:?}
     ports:
       - "3000:3000"
-  mcp-server:
+  boltmcp-mcp-server:
     image: europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/boltmcp-mcp-server:latest
     !!merge <<: *host-access
     depends_on:
-      migrate:
+      boltmcp-web-migrate:
         condition: service_completed_successfully
     environment:
       - DB_HOST=database
@@ -130,11 +130,11 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
-  playground:
+  boltmcp-playground:
     image: europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/boltmcp-playground:latest
     !!merge <<: *host-access
     depends_on:
-      playground-migrate:
+      boltmcp-playground-migrate:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy
@@ -151,7 +151,7 @@ services:
       - AUTH_CLIENT_ID=${OIDC_MCP_CLIENT_CLIENT_ID:?}
       - AUTH_CLIENT_SECRET=${OIDC_MCP_CLIENT_CLIENT_SECRET:?}
       - MCP_SERVER_BASE_URL=${MCP_SERVER_BASE_URL:?}
-      - PLATFORM_BASE_URL=${PLATFORM_BASE_URL:?}
+      - WEB_BASE_URL=${WEB_BASE_URL:?}
       - OPENAI_API_KEY=${PLAYGROUND_OPENAI_API_KEY:?}
     ports:
       - "3002:3002"

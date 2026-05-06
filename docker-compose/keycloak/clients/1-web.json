@@ -1,6 +1,6 @@
 {
-  "clientId": "boltmcp-platform",
-  "name": "BoltMCP Platform",
+  "clientId": "boltmcp-web",
+  "name": "BoltMCP Web",
   "rootUrl": "http://host.docker.internal:3000",
   "redirectUris": ["/api/auth/oauth2/callback/keycloak"],
   "protocol": "openid-connect",
