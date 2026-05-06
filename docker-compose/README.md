@@ -95,7 +95,7 @@ docker compose up keycloak --wait
 
 This will create three clients in Keycloak:
 
-- One client for the main platform
+- One client for the main web app
 - One client for the MCP server to validate tokens
 - One client for MCP Clients to connect to, including the inspector and the playground
 
@@ -104,8 +104,8 @@ This will create three clients in Keycloak:
 Copy and paste the client IDs and secrets from the command above to the following variables in your [.env](.env):
 
 ```bash
-OIDC_PLATFORM_CLIENT_ID="..."
-OIDC_PLATFORM_CLIENT_SECRET="..."
+OIDC_WEB_CLIENT_ID="..."
+OIDC_WEB_CLIENT_SECRET="..."
 
 OIDC_MCP_SERVER_CLIENT_ID="..."
 OIDC_MCP_SERVER_CLIENT_SECRET="..."
