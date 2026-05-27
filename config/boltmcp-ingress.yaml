@@ -1,0 +1,69 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: boltmcp-ingress
+  namespace: boltmcp
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - web.boltmcp.example.com
+        - auth.boltmcp.example.com
+        - playground.boltmcp.example.com
+        - server.boltmcp.example.com
+        - inspector.boltmcp.example.com
+      secretName: boltmcp-tls
+  rules:
+    - host: web.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-web
+                port:
+                  number: 3000
+    - host: auth.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-keycloak
+                port:
+                  number: 8080
+    - host: playground.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-playground
+                port:
+                  number: 3002
+    - host: server.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-mcp-server
+                port:
+                  number: 3001
+    - host: inspector.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-mcp-inspector
+                port:
+                  number: 6274

@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "index",
+    "---Getting Started---",
+    "prerequisites",
+    "cluster-prep",
+    "deployment",
+    "ingress-tls",
+    "authentication"
+  ]
+}

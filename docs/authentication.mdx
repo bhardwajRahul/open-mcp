@@ -1,0 +1,115 @@
+---
+title: Authentication Setup
+description: How BoltMCP's Keycloak realm, OIDC clients, and first user are provisioned automatically on first install.
+---
+
+Once installed and set up Ingress, visit `https://web.{global.domain}`, where `{global.domain}` is the value you used during installation e.g. _boltmcp.example.com_.
+
+Run this script to retrieve the login details:
+
+```bash title="get-login-details.sh" extract="true" bucket="deny"
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ] || [ -z "$1" ]; then
+  echo "Usage: $0 <GLOBAL_DOMAIN>" >&2
+  echo "Please provide your global.domain, e.g. boltmcp.example.com" >&2
+  exit 1
+fi
+
+GLOBAL_DOMAIN=$1
+
+echo "BoltMCP web:    https://web.${GLOBAL_DOMAIN}"
+echo "Keycloak admin: https://auth.${GLOBAL_DOMAIN}/admin/boltmcp/console/"
+echo "Username:       boltmcp_admin"
+printf "Password:       "
+kubectl get secret boltmcp-auth -n boltmcp \
+  -o jsonpath='{.data.boltmcp-admin-password}' | base64 -d
+echo
+```
+
+<Callout type="info">
+The password from the Kubernetes secret is the initial password set at deployment time. If you have since changed the password in Keycloak, the value printed here will be stale.
+</Callout>
+
+Sign in with those credentials to manage your MCP servers.
+
+## Managing clients and scopes
+
+The same credentials as above will give you access to `https://auth.{global.domain}/admin/boltmcp/console/` where you can manage users, clients and scopes.
+
+
+
+BoltMCP delegates sign-in to a dedicated Keycloak realm named **`boltmcp`**. On first install the Keycloak Pod imports a realm JSON mounted from a Helm-rendered ConfigMap (`--import-realm`), provisioning everything BoltMCP needs in a single step:
+
+- OIDC clients with `rootUrl` and redirect URIs derived from your values:
+  - `boltmcp-web` — the web application.
+  - `boltmcp-mcp-server` — the MCP server.
+  - `boltmcp-mcp-client` — the playground (acts as an MCP client).
+  - `boltmcp-mcp-server-to-rest-api` — used by the MCP server to obtain user tokens for the REST API. Confidential, PKCE-aware, consent required, with an audience mapper that injects `REST_API_BASE_URL` into access tokens so the REST API can validate them at introspection time.
+  - `boltmcp-rest-api-resource-server` — used by the REST API itself to call Keycloak's introspection endpoint when verifying inbound bearer tokens.
+- One admin user (`username: boltmcp_admin`, `firstName: Admin`, `emailVerified: true`) with email taken from `oidc.adminUser.email`, granted the `realm-management/realm-admin` role within the `boltmcp` realm.
+
+Client secrets and the admin password are injected into the realm via Keycloak's `${VAR_NAME}` placeholder syntax (substituted at import time from environment variables on the Keycloak Pod), sourced from the `boltmcp-oidc` and `boltmcp-auth` Secrets respectively. The `boltmcp-oidc` Secret therefore carries five client-secret keys. The ConfigMap itself contains no secret material.
+
+You should not need to log into Keycloak as part of normal installation.
+
+## Verify End-to-End
+
+Confirm the realm came up correctly by exercising the full sign-in flow:
+
+1. Open **https://web.boltmcp.example.com** (substitute your domain).
+2. Click **Sign In** — you should be redirected to Keycloak at `https://auth.boltmcp.example.com/realms/boltmcp/...`.
+3. Sign in as `boltmcp_admin` with the password from the auth Secret:
+
+   ```bash
+   kubectl get secret boltmcp-auth -n boltmcp \
+     -o jsonpath='{.data.boltmcp-admin-password}' | base64 -d; echo
+   ```
+4. You should be redirected back to the web app, now authenticated.
+
+If sign-in fails, see [Troubleshooting → Authentication Not Working](/docs/troubleshooting#authentication-not-working).
+
+## Managing the BoltMCP Realm
+
+Sign in as `boltmcp_admin` to manage clients, users, sessions, and other realm settings via Keycloak's built-in consoles. Two URLs, two different purposes:
+
+| URL | Purpose |
+|---|---|
+| `https://auth.<your-domain>/admin/boltmcp/console/` | **Realm admin console.** Manage OIDC clients, users, roles, sessions, identity providers, and realm settings. Scoped to the `boltmcp` realm (you cannot see or affect the `master` realm from here). This is where you go to add or rotate client secrets, add new users, etc. |
+| `https://auth.<your-domain>/realms/boltmcp/account` | **Account self-service portal.** The signed-in user's own profile: change password, edit personal info, view active sessions and linked accounts. No client/realm management here. |
+
+Substitute `<your-domain>` with the apex domain you set in `global.domain` (so for `global.domain: boltmcp.example.com` the admin console lives at `https://auth.boltmcp.example.com/admin/boltmcp/console/`).
+
+<Callout type="info">
+The `boltmcp_admin` user has the `realm-management/realm-admin` composite role, which is the standard Keycloak way to grant full-admin powers *within a single realm*. They can do anything in the `boltmcp` realm but cannot reach the `master` realm or other Keycloak-instance-level settings — that is reserved for the master-realm operator (see below).
+</Callout>
+
+## Two Admin Accounts
+
+Two separate admin identities exist; do not confuse them:
+
+| Account | Realm | Username | Password key (in auth Secret) | Purpose |
+|---|---|---|---|---|
+| Master-realm operator | `master` | `admin` (hardcoded) | `keycloak-admin-password` | Break-glass cluster-operator login. Created by Keycloak via `KC_BOOTSTRAP_ADMIN_*` on first boot. Use to crack open the Keycloak admin console for cross-realm operations. |
+| BoltMCP first user | `boltmcp` | `boltmcp_admin` (hardcoded) | `boltmcp-admin-password` | The day-to-day BoltMCP application login. Granted `realm-management/realm-admin` within the `boltmcp` realm so you can also administer that realm via the Keycloak admin console. |
+
+## Changing the Realm After Install
+
+`--import-realm` is **create-if-not-exists**. Editing OIDC values (client IDs, base URLs, `oidc.adminUser.email`, etc.) and running `helm upgrade` will update the rendered ConfigMap, but Keycloak will **not** retroactively modify a realm that has already been imported.
+
+To re-apply changes:
+
+1. Delete the existing realm — either through the Keycloak admin console (Realm settings → Action menu → Delete realm) or via `kcadm.sh`:
+
+   ```bash
+   kubectl exec -n boltmcp deploy/boltmcp-keycloak -- \
+     /opt/keycloak/bin/kcadm.sh delete realms/boltmcp
+   ```
+2. Restart the Keycloak Pod so it re-runs the import on the freshly-mounted ConfigMap:
+
+   ```bash
+   kubectl rollout restart deploy/boltmcp-keycloak -n boltmcp
+   ```
+
+For routine in-realm edits (adding users, tweaking a redirect URI, rotating a single client secret) prefer the Keycloak admin console over teardown-and-reimport.

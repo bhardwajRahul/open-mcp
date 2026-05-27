@@ -1,0 +1,119 @@
+---
+title: Deployment
+description: Configure your values file, install the Helm chart, and verify the running services.
+---
+
+This page walks through assembling a `values-prod.yaml`, installing the Helm chart into the `boltmcp` namespace, and confirming all pods come up healthy.
+
+<Callout type="info">
+Before running `helm install`, make sure you've completed [Cluster Prep](./cluster-prep) — the three application Secrets (`boltmcp-database`, `boltmcp-oidc`, `boltmcp-auth`) must already exist in the namespace, with all the required keys. `helm install` runs database-migration Jobs as post-install hooks, and Keycloak self-provisions the `boltmcp` realm from a mounted ConfigMap on first start; if any required Secret or key is missing, the hooks fail (or Keycloak crashes on import) and `helm install` exits non-zero. Re-running after creating the Secrets is safe — see [Retrying a failed install](#retrying-a-failed-install) below.
+</Callout>
+
+## Values File Template
+
+`values-prod.yaml` contains no secrets — those live in the three Kubernetes Secrets you created in cluster prep. The file holds only the non-sensitive shape of the deployment:
+
+```yaml title="values-prod.yaml" extract="true"
+global:
+  # Apex domain for BoltMCP. The chart derives per-service hostnames as
+  # web.<domain>, auth.<domain>, playground.<domain>, server.<domain>,
+  # inspector.<domain>. You provision an Ingress (or Gateway / load
+  # balancer) that terminates TLS and routes those hostnames to the
+  # BoltMCP services - see the Ingress & TLS page for an example setup.
+  domain: "boltmcp.example.com"
+
+oidc:
+  adminUser:
+    # Email for the first user in the BoltMCP Keycloak realm. Required.
+    # Provisioned by Keycloak itself on first start via --import-realm
+    # (username "boltmcp_admin", firstName "Admin", emailVerified true). The user
+    # is granted realm-management/realm-admin within the boltmcp realm.
+    # Password lives in the auth Secret under 'boltmcp-admin-password'.
+    email: "admin@example.com"
+```
+
+Replace `boltmcp.example.com` with your own apex domain, and set `oidc.adminUser.email` to a real address. Those are the only required edits.
+
+<Callout type="warn">
+If `oidc.adminUser.email` is not a valid email structure, Keycloak will reject the realm import and the Keycloak Pod will end up in `CrashLoopBackOff` — `helm install` will then fail on the readiness probe (no separate hook Job is involved in BoltMCP realm provisioning).
+</Callout>
+
+<Callout type="warn">
+**Realm import is create-if-not-exists.** Keycloak provisions the `boltmcp` realm only on first start. Changing OIDC values (client IDs, base URLs, `oidc.adminUser.email`, etc.) on a subsequent `helm upgrade` updates the rendered ConfigMap but does **not** retroactively edit the live realm. To re-apply changes, delete the realm via the Keycloak admin console (or `kcadm.sh delete realms/boltmcp`) and restart the Keycloak Pod.
+</Callout>
+
+<Callout type="info">
+**Need non-standard hostnames?** If your platform team won't give you the `<svc>.<domain>` subdomains the chart derives by default, override individual URLs with `web.baseUrl`, `mcpServer.baseUrl`, `playground.baseUrl`, `mcpInspector.baseUrl`, `keycloak.hostname`, and `oidc.issuerUrl`. With all six set, `global.domain` becomes optional.
+</Callout>
+
+## Security Considerations
+
+- `values-prod.yaml` should not contain any sensitive material under this model — it's safe to commit if your other configuration is shareable.
+- Application Secrets live in three Kubernetes Secrets that you manage out-of-band. See [Cluster Prep → Application Secrets](./cluster-prep#application-secrets) for the supported approaches (kubectl, ESO, Sealed Secrets, SOPS).
+
+## Pin a Chart Version
+
+Set a version once and reference it in subsequent commands. Use the latest release version you've been provided:
+
+```bash
+export BOLTMCP_VERSION=0.0.81
+```
+
+## Install the Chart
+
+```bash
+helm install boltmcp \
+  oci://europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/charts/boltmcp \
+  --version ${BOLTMCP_VERSION} \
+  -n boltmcp \
+  -f values-prod.yaml
+```
+
+This deploys all services into the `boltmcp` namespace. Migration jobs run first as Helm hooks, followed by application pods.
+
+## Verify the Deployment
+
+Watch pods until all show `Running` / `Completed`:
+
+```bash
+kubectl get pods -n boltmcp -w
+```
+
+Expected output:
+
+```
+NAME                                     READY   STATUS      RESTARTS   AGE
+boltmcp-database-0                       1/1     Running     0          2m52s
+boltmcp-keycloak-xxxxxxxxxx-xxxxx        1/1     Running     0          2m52s
+boltmcp-keycloak-configure-xxxxx         0/1     Completed   0          2m52s
+boltmcp-mcp-inspector-xxxxxxxxxx-xxxxx   1/1     Running     0          2m52s
+boltmcp-mcp-server-xxxxxxxxxx-xxxxx      1/1     Running     0          2m52s
+boltmcp-playground-xxxxxxxxxx-xxxxx      1/1     Running     0          2m52s
+boltmcp-playground-migrate-xxxxx         0/1     Completed   0          2m52s
+boltmcp-rest-api-xxxxxxxxxx-xxxxx        1/1     Running     0          2m52s
+boltmcp-web-xxxxxxxxxx-xxxxx             1/1     Running     0          2m52s
+boltmcp-web-migrate-xxxxx                0/1     Completed   0          2m14s
+```
+
+If a pod is not starting, check its logs and events:
+
+```bash
+kubectl logs -n boltmcp <pod-name>
+kubectl describe pod -n boltmcp <pod-name>
+```
+
+### Retrying a failed install
+
+If `helm install` fails (for example, a migration hook fails on first run), the release is left in `failed` state and a plain `helm install` will error with `cannot re-use a name that is still in use`. Fix the underlying issue (check the migration job's pod logs first), delete the failed job so a fresh one is created, then retry with `helm upgrade --install` — it's idempotent and re-triggers Helm hooks against the existing release:
+
+```bash
+kubectl delete job -n boltmcp <failed-job-name>
+
+helm upgrade --install boltmcp \
+  oci://europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/charts/boltmcp \
+  --version ${BOLTMCP_VERSION} \
+  -n boltmcp \
+  -f values-prod.yaml
+```
+
+Once successful, set up Ingress & TLS to expose BoltMCP on your domain.

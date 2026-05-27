@@ -1,0 +1,23 @@
+RELEASE=boltmcp
+rand() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-32; }
+
+kubectl create secret generic ${RELEASE}-database -n boltmcp \
+  --from-literal=superuser-password="$(rand)" \
+  --from-literal=web-password="$(rand)" \
+  --from-literal=mcp-server-password="$(rand)" \
+  --from-literal=playground-password="$(rand)" \
+  --from-literal=keycloak-password="$(rand)"
+
+kubectl create secret generic ${RELEASE}-oidc -n boltmcp \
+  --from-literal=web-client-secret="$(rand)" \
+  --from-literal=mcp-server-client-secret="$(rand)" \
+  --from-literal=mcp-client-client-secret="$(rand)" \
+  --from-literal=mcp-server-to-rest-api-client-secret="$(rand)" \
+  --from-literal=rest-api-resource-server-client-secret="$(rand)"
+
+kubectl create secret generic ${RELEASE}-auth -n boltmcp \
+  --from-literal=web-auth-secret="$(rand)" \
+  --from-literal=playground-auth-secret="$(rand)" \
+  --from-literal=keycloak-admin-password="$(rand)" \
+  --from-literal=boltmcp-admin-password="$(rand)" \
+  --from-literal=mcp-inspector-proxy-auth-token="$(rand)"

@@ -1,0 +1,401 @@
+---
+title: Ingress & TLS
+description: Expose BoltMCP publicly. Reference setup with NGINX Ingress Controller and automatic HTTPS certificates.
+---
+
+<Callout type="warn">
+**The BoltMCP chart does not manage cluster ingress.** It expects you to provision your own Ingress / Gateway / load balancer that terminates TLS and routes the BoltMCP hostnames to the in-cluster services. If your platform team handles ingress, hand them the [hostnames table](#what-boltmcp-needs-from-your-ingress) below and skip the rest of this page.
+
+The walkthrough that follows is a **reference setup** using NGINX Ingress Controller, cert-manager, and Let's Encrypt — adapt it for your environment, or replace it entirely with whatever ingress your cluster already runs.
+</Callout>
+
+## What BoltMCP needs from your ingress
+
+For every value of `global.domain` you set in `values-prod.yaml`, the chart configures the workloads to expect these public hostnames, terminating TLS, routed to these in-cluster Services:
+
+| Public hostname | Service | Port |
+|---|---|---|
+| `web.<domain>` | `boltmcp-web` | 3000 |
+| `auth.<domain>` | `boltmcp-keycloak` | 8080 |
+| `playground.<domain>` | `boltmcp-playground` | 3002 |
+| `server.<domain>` | `boltmcp-mcp-server` | 3001 |
+| `inspector.<domain>` | `boltmcp-mcp-inspector` | 6274 |
+
+If you've overridden any of `web.baseUrl`, `mcpServer.baseUrl`, `playground.baseUrl`, `mcpInspector.baseUrl`, or `keycloak.hostname` in your values, mirror those changes in your ingress.
+
+One NGINX-specific annotation is commonly needed:
+
+- `nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"` — required for Keycloak's large authentication headers.
+
+The equivalent setting exists on most ingress implementations; check your platform's docs.
+
+## Reference setup
+
+The rest of this page walks through one common setup: NGINX Ingress Controller, cert-manager for automatic TLS, and DNS-based routing. Skip if your cluster already has these.
+
+### Why NGINX Ingress Controller
+
+| Option | Best For | Trade-offs |
+|--------|----------|------------|
+| **NGINX Ingress** (this guide) | cert-manager compatibility, portability | Extra component to manage |
+| **GKE Ingress** | Simple GKE deployments | Poor cert-manager HTTP-01 support |
+| **Traefik** | Built-in ACME support | Different configuration style |
+| **Gateway API** | Modern Kubernetes standard | Fewer cert-manager examples |
+
+### Install NGINX Ingress Controller
+
+```bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace \
+  --set controller.service.externalTrafficPolicy=Local
+```
+
+Wait for the external IP:
+
+```bash
+kubectl get svc ingress-nginx-controller -n ingress-nginx -w
+```
+
+Expected output:
+
+```
+NAME                       TYPE           CLUSTER-IP    EXTERNAL-IP     PORT(S)                      AGE
+ingress-nginx-controller   LoadBalancer   xx.x.xxx.xx   x.xxx.xxx.xxx   80:32695/TCP,443:30691/TCP   2m8s
+```
+
+Note the `EXTERNAL-IP` once it appears — you'll need it for DNS.
+
+### Reserve a Static IP
+
+Reserve the load balancer IP as static so DNS records remain valid across restarts.
+
+<Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
+<Tab value="GKE">
+```bash
+REGION=$(gcloud container clusters describe <cluster-name> \
+  --format="get(location)" | sed 's/-[a-z]$//')
+
+CURRENT_IP=$(kubectl get svc ingress-nginx-controller \
+  -n ingress-nginx \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+gcloud compute addresses create boltmcp-ingress-ip \
+  --addresses $CURRENT_IP \
+  --region $REGION
+```
+</Tab>
+<Tab value="EKS">
+Annotate the ingress controller service to use an Elastic IP:
+
+```bash
+# Allocate an Elastic IP
+ALLOCATION_ID=$(aws ec2 allocate-address --query 'AllocationId' --output text)
+EIP=$(aws ec2 describe-addresses --allocation-ids $ALLOCATION_ID \
+  --query 'Addresses[0].PublicIp' --output text)
+
+# Annotate the NLB to use the Elastic IP
+kubectl annotate svc ingress-nginx-controller \
+  -n ingress-nginx \
+  service.beta.kubernetes.io/aws-load-balancer-eip-allocations=$ALLOCATION_ID
+```
+</Tab>
+<Tab value="AKS">
+```bash
+# Create a static public IP in the node resource group
+NODE_RG=$(az aks show \
+  --resource-group boltmcp-rg \
+  --name boltmcp-cluster \
+  --query nodeResourceGroup -o tsv)
+
+az network public-ip create \
+  --resource-group $NODE_RG \
+  --name boltmcp-ingress-ip \
+  --sku Standard \
+  --allocation-method Static \
+  --zone 1 2 3 \
+  --location westeurope
+```
+
+The `--location` should match the region of your AKS node resource group. The `create` command's JSON response includes the assigned `ipAddress` — note it down. If you lose it, look it up again with `az network public-ip show -g $NODE_RG -n boltmcp-ingress-ip --query ipAddress -o tsv`.
+
+Set the IP on the ingress controller:
+
+```bash
+helm upgrade ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --reuse-values \
+  --set controller.service.loadBalancerIP=<static-ip>
+```
+
+<Callout type="warn">
+On AKS — unlike GKE and EKS — the load balancer's external IP **changes** when you run this upgrade: Azure swaps the ephemeral IP for your reserved one. Update any in-progress DNS work to use the new IP.
+</Callout>
+</Tab>
+</Tabs>
+
+### Configure DNS
+
+Create A records pointing each BoltMCP subdomain to your static IP. The `Hostname` values depend on whether or not your deployment's `global.domain` matches the DNS hosted zone.
+
+<Tabs groupId="dns-zone" items={['Subdomain of zone', 'Domain matches zone']}>
+<Tab value="Subdomain of zone">
+
+You are updating DNS records in a hosted zone which sits above `global.domain`. For example:
+
+- **DNS hosted zone**: _example.com_
+- **BoltMCP global domain**: _boltmcp.example.com_
+
+If your DNS provider supports wildcard A records and a wildcard at this label won't clash with other records in the zone, add a single record:
+
+| Hostname | Type | Value |
+|------|------|-------|
+| `*.boltmcp` | A | `<static-ip>` |
+
+Otherwise, create five explicit A records:
+
+| Hostname | Type | Value |
+|------|------|-------|
+| `web.boltmcp` | A | `<static-ip>` |
+| `auth.boltmcp` | A | `<static-ip>` |
+| `playground.boltmcp` | A | `<static-ip>` |
+| `server.boltmcp` | A | `<static-ip>` |
+| `inspector.boltmcp` | A | `<static-ip>` |
+
+<Callout type="info">
+If your subdomain is different, replace "boltmcp" in the Hostnames accordingly.
+</Callout>
+
+</Tab>
+<Tab value="Domain matches zone">
+
+You are updating DNS records in a hosted zone which matches `global.domain`. For example:
+
+- **DNS hosted zone**: _example.com_
+- **BoltMCP global domain**: _example.com_
+
+If your DNS provider supports wildcard A records and a wildcard at the zone root won't clash with other records in the zone, add a single record:
+
+| Hostname | Type | Value |
+|------|------|-------|
+| `*` | A | `<static-ip>` |
+
+Otherwise, create five explicit A records:
+
+| Hostname | Type | Value |
+|------|------|-------|
+| `web` | A | `<static-ip>` |
+| `auth` | A | `<static-ip>` |
+| `playground` | A | `<static-ip>` |
+| `server` | A | `<static-ip>` |
+| `inspector` | A | `<static-ip>` |
+
+</Tab>
+</Tabs>
+
+Verify propagation across all five subdomains:
+
+```bash
+for h in web auth playground server inspector; do
+  printf "%s -> " "$h.<domain>"
+  dig +short "$h.<domain>" @8.8.8.8 || echo "(none)"
+done
+```
+
+Each line should resolve to your static IP. Replace `<domain>` with your `global.domain` value.
+
+### Install cert-manager
+
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set crds.enabled=true
+```
+
+Wait for all cert-manager pods to be running:
+
+```bash
+kubectl get pods -n cert-manager
+```
+
+### Create a ClusterIssuer
+
+Start with a **staging** issuer for testing (avoids Let's Encrypt rate limits):
+
+```yaml title="cluster-issuer-staging.yaml" extract="true"
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: your-email@example.com
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+```
+
+Replace `your-email@example.com` with a mailbox you actually monitor. Let's Encrypt uses this address to warn you when a certificate is approaching expiry without having auto-renewed — it's your only signal that renewal is broken before the cert goes down.
+
+```bash
+kubectl apply -f cluster-issuer-staging.yaml
+```
+
+Verify:
+
+```bash
+kubectl get clusterissuer
+# READY should be True
+```
+
+### Create the Ingress Resource
+
+```yaml title="boltmcp-ingress.yaml" extract="true"
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: boltmcp-ingress
+  namespace: boltmcp
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - web.boltmcp.example.com
+        - auth.boltmcp.example.com
+        - playground.boltmcp.example.com
+        - server.boltmcp.example.com
+        - inspector.boltmcp.example.com
+      secretName: boltmcp-tls
+  rules:
+    - host: web.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-web
+                port:
+                  number: 3000
+    - host: auth.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-keycloak
+                port:
+                  number: 8080
+    - host: playground.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-playground
+                port:
+                  number: 3002
+    - host: server.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-mcp-server
+                port:
+                  number: 3001
+    - host: inspector.boltmcp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boltmcp-mcp-inspector
+                port:
+                  number: 6274
+```
+
+The `proxy-buffer-size` annotation is required for Keycloak's large authentication headers.
+
+```bash
+kubectl apply -f boltmcp-ingress.yaml
+```
+
+Watch certificate provisioning:
+
+```bash
+kubectl get certificates -n boltmcp -w
+# Wait for READY to become True
+```
+
+### Switch to Production Certificates
+
+Once everything works with staging certificates, create a production issuer:
+
+```yaml title="cluster-issuer-production.yaml" extract="true"
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-production
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: your-email@example.com
+    privateKeySecretRef:
+      name: letsencrypt-production-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+```
+
+Again, replace `your-email@example.com` with a monitored mailbox so you receive Let's Encrypt's renewal-failure warnings.
+
+```bash
+kubectl apply -f cluster-issuer-production.yaml
+```
+
+Update the ingress annotation in `boltmcp-ingress.yaml` (edit the file on disk, not the live resource):
+
+```yaml
+annotations:
+  cert-manager.io/cluster-issuer: letsencrypt-production
+```
+
+Delete the staging certificate to trigger re-issuance:
+
+```bash
+kubectl delete secret boltmcp-tls -n boltmcp
+kubectl apply -f boltmcp-ingress.yaml
+```
+
+Verify the new certificate:
+
+```bash
+kubectl get certificates -n boltmcp -w
+# Wait for READY = True
+```
+
+Your browser should now show a trusted certificate without security warnings.
+
+## Congratulations
+
+You've successfully exposed BoltMCP to the public internet with TLS-secured ingress. Your cluster is now reachable at your configured hostnames with valid, auto-renewing certificates — nicely done.
