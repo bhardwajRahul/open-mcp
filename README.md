@@ -1,28 +1,34 @@
 # BoltMCP Installation
 
-BoltMCP installs on any Kubernetes cluster via Helm.
+BoltMCP installs on any Kubernetes cluster with a single Helm chart.
 
 ## With Claude Code
 
-Clone this repo:
+1. Prerequisite: [install Claude Code](https://code.claude.com/docs/) and login:
+
+```bash
+claude auth login
+```
+
+2. Clone this repository:
 
 ```bash
 git clone https://github.com/boltmcp/boltmcp.git
 ```
 
-Open Claude Code from inside the boltmcp directory:
+3. Open Claude Code from inside the boltmcp directory:
 
 ```bash
 cd boltmcp && claude
 ```
 
-Invoke the Skill to get Claude to walk you through the installation process:
+4. Invoke the Skill and Claude will walk you through the installation process:
 
-```bash
+```
 /install-boltmcp Install BoltMCP on a new cluster
 ```
 
-> Replace the part after "/install-boltmcp " with any instruction you want related to installing, updating or uninstalling BoltMCP.
+> Replace the text after "/install-boltmcp " with any instruction related to installing, updating or uninstalling BoltMCP.
 
 ## Manually
 
