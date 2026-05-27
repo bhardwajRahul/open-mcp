@@ -1,0 +1,16 @@
+global:
+  # Apex domain for BoltMCP. The chart derives per-service hostnames as
+  # web.<domain>, auth.<domain>, playground.<domain>, server.<domain>,
+  # inspector.<domain>. You provision an Ingress (or Gateway / load
+  # balancer) that terminates TLS and routes those hostnames to the
+  # BoltMCP services - see the Ingress & TLS page for an example setup.
+  domain: "boltmcp.example.com"
+
+oidc:
+  adminUser:
+    # Email for the first user in the BoltMCP Keycloak realm. Required.
+    # Provisioned by Keycloak itself on first start via --import-realm
+    # (username "boltmcp_admin", firstName "Admin", emailVerified true). The user
+    # is granted realm-management/realm-admin within the boltmcp realm.
+    # Password lives in the auth Secret under 'boltmcp-admin-password'.
+    email: "admin@example.com"

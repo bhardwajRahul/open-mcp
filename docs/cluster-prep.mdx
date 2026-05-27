@@ -1,0 +1,229 @@
+---
+title: Cluster Prep
+description: Create the boltmcp namespace, add the image pull secret, create three application Secrets, and authenticate Helm against the BoltMCP container registry.
+---
+
+BoltMCP's Helm chart and container images are both hosted in a private Google Artifact Registry. You should have received a `key.json` service account key file for access — the same key authenticates both Helm (to pull the chart) and your Kubernetes cluster (to pull images at runtime).
+
+Before installing the chart you also need to pre-create three Kubernetes Secrets that BoltMCP reads at runtime (database passwords, OIDC client secrets, and auth tokens). The chart does not generate these — you control how they are populated.
+
+## Set Variables
+
+Export this once so the commands below can be pasted verbatim:
+
+```bash
+export KEY_JSON_PATH=./keys/key.json
+```
+
+Update the value of `KEY_JSON_PATH` if your key lives elsewhere.
+
+## Create Namespace
+
+This namespace is where BoltMCP will be installed:
+
+```bash
+kubectl create namespace boltmcp
+```
+
+## Image Pull Secret
+
+Create the pull secret in the `boltmcp` namespace so the cluster can pull images at runtime:
+
+```bash
+kubectl create secret docker-registry boltmcp-pull-secret \
+  -n boltmcp \
+  --docker-server=europe-west2-docker.pkg.dev \
+  --docker-username=_json_key \
+  --docker-password="$(cat ${KEY_JSON_PATH})"
+```
+
+The chart references this Secret by name via `global.imagePullSecrets`, which defaults to `boltmcp-pull-secret`. If you prefer a different Secret name, create it under that name here and override `global.imagePullSecrets` in your values file accordingly.
+
+## Application Secrets
+
+BoltMCP reads passwords and tokens from three user-managed Kubernetes Secrets. The chart never creates them. Make sure all three Secrets exist with every required key populated before moving on to the deployment step.
+
+The default Secret names are `<release>-database`, `<release>-oidc`, and `<release>-auth` (where `<release>` is the Helm release name — e.g. `boltmcp` if you plan to run `helm install boltmcp ...`). You can override each name via `secrets.database.name`, `secrets.oidc.name`, and `secrets.auth.name` in your values file.
+
+### Required keys
+
+**`boltmcp-database`**
+
+| Key | Used for |
+|---|---|
+| `superuser-password` | PostgreSQL superuser password |
+| `web-password` | DB password for the BoltMCP web app |
+| `mcp-server-password` | DB password for the MCP server (read-only) |
+| `playground-password` | DB password for the playground |
+| `keycloak-password` | DB password for Keycloak |
+
+**`boltmcp-oidc`**
+
+| Key | Used for |
+|---|---|
+| `web-client-secret` | OIDC client secret for the web app |
+| `mcp-server-client-secret` | OIDC client secret for the MCP server |
+| `mcp-client-client-secret` | OIDC client secret for the playground (MCP client) |
+| `mcp-server-to-rest-api-client-secret` | OIDC client secret used by the MCP server to obtain user tokens for the REST API (PKCE-aware, audience-mapped to `REST_API_BASE_URL`). |
+| `rest-api-resource-server-client-secret` | OIDC client secret used by the REST API to authenticate to Keycloak's token introspection endpoint. |
+
+**`boltmcp-auth`**
+
+| Key | Used for |
+|---|---|
+| `web-auth-secret` | Session signing key for the web app (≥ 32 chars) |
+| `playground-auth-secret` | Session signing key for the playground (≥ 32 chars) |
+| `keycloak-admin-password` | Master-realm Keycloak operator password (break-glass admin-console login) |
+| `boltmcp-admin-password` | Password for the first user (`boltmcp_admin`) in the BoltMCP Keycloak realm |
+| `mcp-inspector-proxy-auth-token` | Proxy auth token (required when `mcpInspector.enabled=true`) |
+| `openai-api-key` | OpenAI API key (optional; omit if you don't use OpenAI in the playground) |
+
+<Callout type="info">
+There are two distinct admin passwords: `keycloak-admin-password` belongs to the master-realm operator (created by Keycloak via `KC_BOOTSTRAP_ADMIN_*` on first boot, used to log into the Keycloak admin console as a cluster operator), while `boltmcp-admin-password` belongs to the first user of the `boltmcp` realm (provisioned via `--import-realm`, granted `realm-management/realm-admin` so they can administer the BoltMCP realm). Keep them as separate values.
+</Callout>
+
+### Option A — Manual with `kubectl` (simplest)
+
+Generate random values inline and create all three Secrets in one shot. This is the fastest path for evaluation installs and any environment where you don't already have a secrets manager.
+
+The chart reads each Secret by a name derived from the Helm release name (defaults: `<release>-database`, `<release>-oidc`, `<release>-auth`). Set `RELEASE` below to match the release name you plan to pass to `helm install` — `boltmcp` if you'll run `helm install boltmcp …`:
+
+```bash title="create-secrets.sh" extract="true" bucket="allow"
+RELEASE=boltmcp
+rand() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-32; }
+
+kubectl create secret generic ${RELEASE}-database -n boltmcp \
+  --from-literal=superuser-password="$(rand)" \
+  --from-literal=web-password="$(rand)" \
+  --from-literal=mcp-server-password="$(rand)" \
+  --from-literal=playground-password="$(rand)" \
+  --from-literal=keycloak-password="$(rand)"
+
+kubectl create secret generic ${RELEASE}-oidc -n boltmcp \
+  --from-literal=web-client-secret="$(rand)" \
+  --from-literal=mcp-server-client-secret="$(rand)" \
+  --from-literal=mcp-client-client-secret="$(rand)" \
+  --from-literal=mcp-server-to-rest-api-client-secret="$(rand)" \
+  --from-literal=rest-api-resource-server-client-secret="$(rand)"
+
+kubectl create secret generic ${RELEASE}-auth -n boltmcp \
+  --from-literal=web-auth-secret="$(rand)" \
+  --from-literal=playground-auth-secret="$(rand)" \
+  --from-literal=keycloak-admin-password="$(rand)" \
+  --from-literal=boltmcp-admin-password="$(rand)" \
+  --from-literal=mcp-inspector-proxy-auth-token="$(rand)"
+```
+
+To include an OpenAI key in the auth Secret, add `--from-literal=openai-api-key=sk-...` to the third command.
+
+<Callout type="info">
+The chart bundles a ready-made version of these commands as a script at `charts/boltmcp/examples/secrets/create-secrets.sh` (idempotent, accepts `NAMESPACE` / `OPENAI_API_KEY` env vars). Run it directly instead of copy-pasting the block above.
+</Callout>
+
+To retrieve a value later (e.g. to log into Keycloak as admin):
+
+```bash
+kubectl get secret boltmcp-auth -n boltmcp \
+  -o jsonpath='{.data.keycloak-admin-password}' | base64 -d; echo
+```
+
+### Option B — External Secrets Operator + HashiCorp Vault
+
+If your organisation already stores secrets in Vault (or AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, 1Password), the [External Secrets Operator](https://external-secrets.io/) syncs them into Kubernetes `Secret` resources for the chart to read.
+
+**One-time cluster setup** — install ESO and create a `ClusterSecretStore` pointing at your Vault:
+
+```yaml title="cluster-secret-store-vault.yaml"
+apiVersion: external-secrets.io/v1beta1
+kind: ClusterSecretStore
+metadata:
+  name: vault-backend
+spec:
+  provider:
+    vault:
+      server: "https://vault.example.com:8200"
+      path: "secret"
+      version: "v2"
+      auth:
+        kubernetes:
+          mountPath: "kubernetes"
+          role: "boltmcp-eso"
+          serviceAccountRef:
+            name: "external-secrets"
+            namespace: "external-secrets"
+```
+
+```bash
+kubectl apply -f cluster-secret-store-vault.yaml
+```
+
+**Per-release setup** — populate the three Vault entries (`secret/boltmcp/database`, `secret/boltmcp/oidc`, `secret/boltmcp/auth`) with the key names listed above (`secret/boltmcp/oidc` carries all five client secrets), then apply three `ExternalSecret` resources. Here's the database one as a worked example:
+
+```yaml title="external-secret-database.yaml"
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: boltmcp-database
+  namespace: boltmcp
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: boltmcp-database
+    creationPolicy: Owner
+  data:
+    - secretKey: superuser-password
+      remoteRef: { key: boltmcp/database, property: superuser-password }
+    - secretKey: web-password
+      remoteRef: { key: boltmcp/database, property: web-password }
+    - secretKey: mcp-server-password
+      remoteRef: { key: boltmcp/database, property: mcp-server-password }
+    - secretKey: playground-password
+      remoteRef: { key: boltmcp/database, property: playground-password }
+    - secretKey: keycloak-password
+      remoteRef: { key: boltmcp/database, property: keycloak-password }
+```
+
+Full manifests for all three Secrets (database, OIDC, auth) live at `charts/boltmcp/examples/secrets/external-secrets-vault.yaml`. Wait for `kubectl get externalsecret -n boltmcp` to show `STATUS=SecretSynced` for all three before installing the chart.
+
+For AWS Secrets Manager, GCP Secret Manager, or Azure Key Vault, swap only the `provider` block in the `ClusterSecretStore` — the `ExternalSecret` manifests stay the same.
+
+### Option C — Sealed Secrets or SOPS
+
+Both produce ordinary `Secret` resources that the chart consumes; the difference is how the source material lives at rest.
+
+- **Sealed Secrets** — encrypt a `Secret` with `kubeseal` against the cluster's public key, commit the resulting `SealedSecret` to Git, and the in-cluster controller decrypts it back into a regular `Secret`. Good when you don't have an external secrets manager.
+- **SOPS** — encrypt `Secret` YAML files with age / PGP / cloud KMS. Flux decrypts on apply natively; Argo CD supports SOPS via `argocd-vault-plugin` or `helm-secrets`.
+
+In both cases the materialised `Secret` must end up named `boltmcp-database` / `boltmcp-oidc` / `boltmcp-auth` (or whatever you set `secrets.<group>.name` to) with the keys listed above.
+
+### Custom Secret names
+
+If your organisation requires different naming, override the three default names in your values file. The chart's helpers honour these overrides everywhere they reference a Secret:
+
+```yaml title="values-prod.yaml"
+secrets:
+  database:
+    name: my-org-boltmcp-db
+  oidc:
+    name: my-org-boltmcp-oidc
+  auth:
+    name: my-org-boltmcp-auth
+```
+
+## Authenticate Helm
+
+Log Helm into the registry on your workstation. This caches a credential at `~/.config/helm/registry/config.json`:
+
+```bash
+helm registry login \
+  --username _json_key \
+  --password-stdin \
+  europe-west2-docker.pkg.dev < ${KEY_JSON_PATH}
+```
+
+<Callout type="info">
+Helm v4 requires the bare hostname (no `https://` prefix). Helm v3 accepts both.
+</Callout>
