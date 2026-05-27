@@ -65,7 +65,7 @@ If you don't know their work email, ask them to type the domain. Recommend them 
 
 ## Follow the docs to install
 
-Look at the order of the docs pages as defined in `./docs/meta.json` in the project root directory.
+Look at the order of the docs pages as defined in `./docs/meta.json` in the project root directory. Each page is a `.mdx` file in the docs dir.
 
 Follow all the steps in the Getting Started pages from start to finish. The end result should be a successful installation of BoltMCP on the user's cluster which they can successfully log in to.
 
