@@ -12,7 +12,6 @@ spec:
     - hosts:
         - web.boltmcp.example.com
         - auth.boltmcp.example.com
-        - playground.boltmcp.example.com
         - server.boltmcp.example.com
         - inspector.boltmcp.example.com
       secretName: boltmcp-tls
@@ -37,16 +36,6 @@ spec:
                 name: boltmcp-keycloak
                 port:
                   number: 8080
-    - host: playground.boltmcp.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: boltmcp-playground
-                port:
-                  number: 3002
     - host: server.boltmcp.example.com
       http:
         paths:

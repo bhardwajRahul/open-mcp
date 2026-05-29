@@ -45,7 +45,7 @@ BoltMCP delegates sign-in to a dedicated Keycloak realm named **`boltmcp`**. On 
 - OIDC clients with `rootUrl` and redirect URIs derived from your values:
   - `boltmcp-web` — the web application.
   - `boltmcp-mcp-server` — the MCP server.
-  - `boltmcp-mcp-client` — the playground (acts as an MCP client).
+  - `boltmcp-mcp-client` — shared client for external MCP clients (e.g. Claude Code).
   - `boltmcp-mcp-server-to-rest-api` — used by the MCP server to obtain user tokens for the REST API. Confidential, PKCE-aware, consent required, with an audience mapper that injects `REST_API_BASE_URL` into access tokens so the REST API can validate them at introspection time.
   - `boltmcp-rest-api-resource-server` — used by the REST API itself to call Keycloak's introspection endpoint when verifying inbound bearer tokens.
 - One admin user (`username: boltmcp_admin`, `firstName: Admin`, `emailVerified: true`) with email taken from `oidc.adminUser.email`, granted the `realm-management/realm-admin` role within the `boltmcp` realm.

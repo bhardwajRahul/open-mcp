@@ -3,9 +3,10 @@ rand() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-32; }
 
 kubectl create secret generic ${RELEASE}-database -n boltmcp \
   --from-literal=superuser-password="$(rand)" \
+  --from-literal=migrate-core-password="$(rand)" \
   --from-literal=web-password="$(rand)" \
+  --from-literal=rest-api-password="$(rand)" \
   --from-literal=mcp-server-password="$(rand)" \
-  --from-literal=playground-password="$(rand)" \
   --from-literal=keycloak-password="$(rand)"
 
 kubectl create secret generic ${RELEASE}-oidc -n boltmcp \
@@ -17,7 +18,6 @@ kubectl create secret generic ${RELEASE}-oidc -n boltmcp \
 
 kubectl create secret generic ${RELEASE}-auth -n boltmcp \
   --from-literal=web-auth-secret="$(rand)" \
-  --from-literal=playground-auth-secret="$(rand)" \
   --from-literal=keycloak-admin-password="$(rand)" \
   --from-literal=boltmcp-admin-password="$(rand)" \
   --from-literal=mcp-inspector-proxy-auth-token="$(rand)"

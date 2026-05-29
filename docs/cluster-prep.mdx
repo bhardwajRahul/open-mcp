@@ -52,9 +52,10 @@ The default Secret names are `<release>-database`, `<release>-oidc`, and `<relea
 | Key | Used for |
 |---|---|
 | `superuser-password` | PostgreSQL superuser password |
-| `web-password` | DB password for the BoltMCP web app |
+| `migrate-core-password` | DB password for the migration role (owns the `boltmcp_core` schema; runs migrations) |
+| `web-password` | DB password for the BoltMCP web app (read/write) |
+| `rest-api-password` | DB password for the REST API (read/write) |
 | `mcp-server-password` | DB password for the MCP server (read-only) |
-| `playground-password` | DB password for the playground |
 | `keycloak-password` | DB password for Keycloak |
 
 **`boltmcp-oidc`**
@@ -63,7 +64,7 @@ The default Secret names are `<release>-database`, `<release>-oidc`, and `<relea
 |---|---|
 | `web-client-secret` | OIDC client secret for the web app |
 | `mcp-server-client-secret` | OIDC client secret for the MCP server |
-| `mcp-client-client-secret` | OIDC client secret for the playground (MCP client) |
+| `mcp-client-client-secret` | OIDC client secret for external MCP clients (e.g. Claude Code) |
 | `mcp-server-to-rest-api-client-secret` | OIDC client secret used by the MCP server to obtain user tokens for the REST API (PKCE-aware, audience-mapped to `REST_API_BASE_URL`). |
 | `rest-api-resource-server-client-secret` | OIDC client secret used by the REST API to authenticate to Keycloak's token introspection endpoint. |
 
@@ -72,11 +73,9 @@ The default Secret names are `<release>-database`, `<release>-oidc`, and `<relea
 | Key | Used for |
 |---|---|
 | `web-auth-secret` | Session signing key for the web app (≥ 32 chars) |
-| `playground-auth-secret` | Session signing key for the playground (≥ 32 chars) |
 | `keycloak-admin-password` | Master-realm Keycloak operator password (break-glass admin-console login) |
 | `boltmcp-admin-password` | Password for the first user (`boltmcp_admin`) in the BoltMCP Keycloak realm |
 | `mcp-inspector-proxy-auth-token` | Proxy auth token (required when `mcpInspector.enabled=true`) |
-| `openai-api-key` | OpenAI API key (optional; omit if you don't use OpenAI in the playground) |
 
 <Callout type="info">
 There are two distinct admin passwords: `keycloak-admin-password` belongs to the master-realm operator (created by Keycloak via `KC_BOOTSTRAP_ADMIN_*` on first boot, used to log into the Keycloak admin console as a cluster operator), while `boltmcp-admin-password` belongs to the first user of the `boltmcp` realm (provisioned via `--import-realm`, granted `realm-management/realm-admin` so they can administer the BoltMCP realm). Keep them as separate values.
@@ -94,9 +93,10 @@ rand() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-32; }
 
 kubectl create secret generic ${RELEASE}-database -n boltmcp \
   --from-literal=superuser-password="$(rand)" \
+  --from-literal=migrate-core-password="$(rand)" \
   --from-literal=web-password="$(rand)" \
+  --from-literal=rest-api-password="$(rand)" \
   --from-literal=mcp-server-password="$(rand)" \
-  --from-literal=playground-password="$(rand)" \
   --from-literal=keycloak-password="$(rand)"
 
 kubectl create secret generic ${RELEASE}-oidc -n boltmcp \
@@ -108,16 +108,13 @@ kubectl create secret generic ${RELEASE}-oidc -n boltmcp \
 
 kubectl create secret generic ${RELEASE}-auth -n boltmcp \
   --from-literal=web-auth-secret="$(rand)" \
-  --from-literal=playground-auth-secret="$(rand)" \
   --from-literal=keycloak-admin-password="$(rand)" \
   --from-literal=boltmcp-admin-password="$(rand)" \
   --from-literal=mcp-inspector-proxy-auth-token="$(rand)"
 ```
 
-To include an OpenAI key in the auth Secret, add `--from-literal=openai-api-key=sk-...` to the third command.
-
 <Callout type="info">
-The chart bundles a ready-made version of these commands as a script at `charts/boltmcp/examples/secrets/create-secrets.sh` (idempotent, accepts `NAMESPACE` / `OPENAI_API_KEY` env vars). Run it directly instead of copy-pasting the block above.
+The chart bundles a ready-made version of these commands as a script at `charts/boltmcp/examples/secrets/create-secrets.sh` (idempotent, accepts a `NAMESPACE` env var). Run it directly instead of copy-pasting the block above.
 </Callout>
 
 To retrieve a value later (e.g. to log into Keycloak as admin):
@@ -176,12 +173,14 @@ spec:
   data:
     - secretKey: superuser-password
       remoteRef: { key: boltmcp/database, property: superuser-password }
+    - secretKey: migrate-core-password
+      remoteRef: { key: boltmcp/database, property: migrate-core-password }
     - secretKey: web-password
       remoteRef: { key: boltmcp/database, property: web-password }
+    - secretKey: rest-api-password
+      remoteRef: { key: boltmcp/database, property: rest-api-password }
     - secretKey: mcp-server-password
       remoteRef: { key: boltmcp/database, property: mcp-server-password }
-    - secretKey: playground-password
-      remoteRef: { key: boltmcp/database, property: playground-password }
     - secretKey: keycloak-password
       remoteRef: { key: boltmcp/database, property: keycloak-password }
 ```

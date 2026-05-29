@@ -59,22 +59,22 @@ Database migration jobs run as one-shot Helm hooks before application pods start
 | **Web** | 3000 | Next.js application — primary UI and API |
 | **MCP Server** | 3001 | Model Context Protocol server (read-only DB access) |
 | **REST API** | 3003 (internal) | Versioned `/api/v1/*` service — ClusterIP only, consumed by Web (BFF proxy) and MCP Server |
-| **Playground** | 3002 | MCP client for testing and interacting with MCP servers |
 | **Keycloak** | 8080 | OpenID Connect identity provider for authentication |
-| **PostgreSQL** | 5432 | Shared database with per-service schemas and users |
+| **PostgreSQL** | 5432 | Shared database; one login role per service, each scoped to a `boltmcp_*` schema |
 | **MCP Inspector** | 6274 | Optional debugging tool for MCP servers |
 | **Vault** | 8200 | Optional HashiCorp Vault instance (dev mode only) |
 
 ## Database Isolation
 
-The chart provisions separate database users with scoped access:
+Each BoltMCP service connects as its own PostgreSQL login role. Every role's `search_path` is scoped to a `boltmcp_*` schema — none of them touch the `public` schema:
 
-| User | Schema | Access |
-|------|--------|--------|
-| `boltmcp_web` | `public` | Full privileges (runs migrations) |
-| `boltmcp_mcp_server` | `public` | Read-only (`SELECT` only) |
-| `boltmcp_playground` | `boltmcp_playground` | Full privileges on own schema, read-only on public |
-| `boltmcp_keycloak` | `boltmcp_keycloak` | Full privileges on own schema |
+| Service | Login role | Schema | Access |
+|---------|-----------|--------|--------|
+| Web | `boltmcp_web` | `boltmcp_core` | Read/write |
+| REST API | `boltmcp_rest_api` | `boltmcp_core` | Read/write |
+| MCP Server | `boltmcp_mcp_server` | `boltmcp_core` | Read-only (`SELECT` only) |
+| Migrations | `boltmcp_migrate_core` | `boltmcp_core` | Owns the schema; runs migrations |
+| Keycloak | `boltmcp_keycloak` | `boltmcp_keycloak` | Full privileges on own schema |
 
 ## Next Steps
 

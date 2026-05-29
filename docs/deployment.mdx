@@ -16,7 +16,7 @@ Before running `helm install`, make sure you've completed [Cluster Prep](./clust
 ```yaml title="values-prod.yaml" extract="true"
 global:
   # Apex domain for BoltMCP. The chart derives per-service hostnames as
-  # web.<domain>, auth.<domain>, playground.<domain>, server.<domain>,
+  # web.<domain>, auth.<domain>, server.<domain>,
   # inspector.<domain>. You provision an Ingress (or Gateway / load
   # balancer) that terminates TLS and routes those hostnames to the
   # BoltMCP services - see the Ingress & TLS page for an example setup.
@@ -43,7 +43,7 @@ If `oidc.adminUser.email` is not a valid email structure, Keycloak will reject t
 </Callout>
 
 <Callout type="info">
-**Need non-standard hostnames?** If your platform team won't give you the `<svc>.<domain>` subdomains the chart derives by default, override individual URLs with `web.baseUrl`, `mcpServer.baseUrl`, `playground.baseUrl`, `mcpInspector.baseUrl`, `keycloak.hostname`, and `oidc.issuerUrl`. With all six set, `global.domain` becomes optional.
+**Need non-standard hostnames?** If your platform team won't give you the `<svc>.<domain>` subdomains the chart derives by default, override individual URLs with `web.baseUrl`, `mcpServer.baseUrl`, `mcpInspector.baseUrl`, `keycloak.hostname`, and `oidc.issuerUrl`. With all five set, `global.domain` becomes optional.
 </Callout>
 
 ## Security Considerations
@@ -88,11 +88,9 @@ boltmcp-keycloak-xxxxxxxxxx-xxxxx        1/1     Running     0          2m52s
 boltmcp-keycloak-configure-xxxxx         0/1     Completed   0          2m52s
 boltmcp-mcp-inspector-xxxxxxxxxx-xxxxx   1/1     Running     0          2m52s
 boltmcp-mcp-server-xxxxxxxxxx-xxxxx      1/1     Running     0          2m52s
-boltmcp-playground-xxxxxxxxxx-xxxxx      1/1     Running     0          2m52s
-boltmcp-playground-migrate-xxxxx         0/1     Completed   0          2m52s
 boltmcp-rest-api-xxxxxxxxxx-xxxxx        1/1     Running     0          2m52s
 boltmcp-web-xxxxxxxxxx-xxxxx             1/1     Running     0          2m52s
-boltmcp-web-migrate-xxxxx                0/1     Completed   0          2m14s
+boltmcp-migrate-core-xxxxx               0/1     Completed   0          2m14s
 ```
 
 If a pod is not starting, check its logs and events:
