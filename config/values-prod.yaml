@@ -1,6 +1,6 @@
 global:
   # Apex domain for BoltMCP. The chart derives per-service hostnames as
-  # web.<domain>, auth.<domain>, playground.<domain>, server.<domain>,
+  # web.<domain>, auth.<domain>, server.<domain>,
   # inspector.<domain>. You provision an Ingress (or Gateway / load
   # balancer) that terminates TLS and routes those hostnames to the
   # BoltMCP services - see the Ingress & TLS page for an example setup.

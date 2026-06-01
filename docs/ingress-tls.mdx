@@ -17,11 +17,10 @@ For every value of `global.domain` you set in `values-prod.yaml`, the chart conf
 |---|---|---|
 | `web.<domain>` | `boltmcp-web` | 3000 |
 | `auth.<domain>` | `boltmcp-keycloak` | 8080 |
-| `playground.<domain>` | `boltmcp-playground` | 3002 |
 | `server.<domain>` | `boltmcp-mcp-server` | 3001 |
 | `inspector.<domain>` | `boltmcp-mcp-inspector` | 6274 |
 
-If you've overridden any of `web.baseUrl`, `mcpServer.baseUrl`, `playground.baseUrl`, `mcpInspector.baseUrl`, or `keycloak.hostname` in your values, mirror those changes in your ingress.
+If you've overridden any of `web.baseUrl`, `mcpServer.baseUrl`, `mcpInspector.baseUrl`, or `keycloak.hostname` in your values, mirror those changes in your ingress.
 
 One NGINX-specific annotation is commonly needed:
 
@@ -155,13 +154,12 @@ If your DNS provider supports wildcard A records and a wildcard at this label wo
 |------|------|-------|
 | `*.boltmcp` | A | `<static-ip>` |
 
-Otherwise, create five explicit A records:
+Otherwise, create four explicit A records:
 
 | Hostname | Type | Value |
 |------|------|-------|
 | `web.boltmcp` | A | `<static-ip>` |
 | `auth.boltmcp` | A | `<static-ip>` |
-| `playground.boltmcp` | A | `<static-ip>` |
 | `server.boltmcp` | A | `<static-ip>` |
 | `inspector.boltmcp` | A | `<static-ip>` |
 
@@ -183,23 +181,22 @@ If your DNS provider supports wildcard A records and a wildcard at the zone root
 |------|------|-------|
 | `*` | A | `<static-ip>` |
 
-Otherwise, create five explicit A records:
+Otherwise, create four explicit A records:
 
 | Hostname | Type | Value |
 |------|------|-------|
 | `web` | A | `<static-ip>` |
 | `auth` | A | `<static-ip>` |
-| `playground` | A | `<static-ip>` |
 | `server` | A | `<static-ip>` |
 | `inspector` | A | `<static-ip>` |
 
 </Tab>
 </Tabs>
 
-Verify propagation across all five subdomains:
+Verify propagation across all four subdomains:
 
 ```bash
-for h in web auth playground server inspector; do
+for h in web auth server inspector; do
   printf "%s -> " "$h.<domain>"
   dig +short "$h.<domain>" @8.8.8.8 || echo "(none)"
 done
@@ -276,7 +273,6 @@ spec:
     - hosts:
         - web.boltmcp.example.com
         - auth.boltmcp.example.com
-        - playground.boltmcp.example.com
         - server.boltmcp.example.com
         - inspector.boltmcp.example.com
       secretName: boltmcp-tls
@@ -301,16 +297,6 @@ spec:
                 name: boltmcp-keycloak
                 port:
                   number: 8080
-    - host: playground.boltmcp.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: boltmcp-playground
-                port:
-                  number: 3002
     - host: server.boltmcp.example.com
       http:
         paths:
