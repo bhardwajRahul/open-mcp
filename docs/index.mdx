@@ -14,10 +14,10 @@ graph LR
   gold[BoltMCP Gold Image<br/>MCP Server]
 
   database[(PostgreSQL)]
-  idp["IdP<br/>(Okta,Entra,Ping,Keycloak)"]
-  redis[Redis, Valkey]
-  vault[Vault]
-  policy[OPA Policy Engine]
+  idp["Identity Provider<br/>(Okta,Entra,Ping,Keycloak)"]
+  cache["Cache<br/>(Redis,Valkey)"]
+  vault["Secrets Manager<br/>(Vault)"]
+  policy["Policy-as-Code<br/>(OPA)"]
   observability["OpenTelemetry<br/>(Datadog,Splunk,Grafana)"]
   gateway[Optional Gateway]
   agents[Claude, ChatGPT, Agents]
@@ -35,7 +35,7 @@ graph LR
   api --- observability
   database --- gold
   idp --- gold
-  gold --- redis
+  gold --- cache
   gold --- vault
   gold --- policy
   gold --- observability

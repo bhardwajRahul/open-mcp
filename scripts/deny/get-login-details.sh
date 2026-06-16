@@ -9,10 +9,11 @@ fi
 
 GLOBAL_DOMAIN=$1
 
-echo "BoltMCP web:    https://web.${GLOBAL_DOMAIN}"
-echo "Keycloak admin: https://auth.${GLOBAL_DOMAIN}/admin/boltmcp/console/"
-echo "Username:       boltmcp_admin"
-printf "Password:       "
+echo "BoltMCP dashboard:    https://web.${GLOBAL_DOMAIN}"
+echo "BoltMCP docs:         https://web.${GLOBAL_DOMAIN}/docs"
+echo "Keycloak admin:       https://auth.${GLOBAL_DOMAIN}/admin/boltmcp/console/"
+echo "Username:             boltmcp_admin"
+printf "Password:             "
 kubectl get secret boltmcp-auth -n boltmcp \
   -o jsonpath='{.data.boltmcp-admin-password}' | base64 -d
 echo

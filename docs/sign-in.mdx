@@ -1,0 +1,80 @@
+---
+title: Sign In
+description: Retrieve your SSO login credentials and sign in to the BoltMCP dashboard, docs, and Keycloak admin console.
+---
+
+Once you've installed BoltMCP and set up ingress, run this script to retrieve your SSO login credentials:
+
+```bash title="get-login-details.sh" extract="true" bucket="deny"
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -lt 1 ] || [ -z "$1" ]; then
+  echo "Usage: $0 <GLOBAL_DOMAIN>" >&2
+  echo "Please provide your global.domain, e.g. boltmcp.example.com" >&2
+  exit 1
+fi
+
+GLOBAL_DOMAIN=$1
+
+echo "BoltMCP dashboard:    https://web.${GLOBAL_DOMAIN}"
+echo "BoltMCP docs:         https://web.${GLOBAL_DOMAIN}/docs"
+echo "Keycloak admin:       https://auth.${GLOBAL_DOMAIN}/admin/boltmcp/console/"
+echo "Username:             boltmcp_admin"
+printf "Password:             "
+kubectl get secret boltmcp-auth -n boltmcp \
+  -o jsonpath='{.data.boltmcp-admin-password}' | base64 -d
+echo
+```
+
+<Callout type="info">
+This shows the initial password set at deployment time. If you've since updated the password in Keycloak, the value printed here will be stale.
+</Callout>
+
+The script output includes links to three websites from your deployment:
+
+### 1. BoltMCP Dashboard
+
+Click the link to the BoltMCP dashboard in the script output and sign in via Keycloak with the given credentials. This dashboard is where you'll create and manage your MCP servers.
+
+### 2. BoltMCP Documentation
+
+The docs are linked from the dashboard's sidebar. They're distinct from these install docs. They give instruction on how to use the dashboard, how to manage authorization and how to connect MCP clients to your MCP servers.
+
+### 3. Keycloak Admin Console
+
+The admin console is also linked from the dashboard's sidebar. This is where you'll manage users, OAuth clients and connection to any other identity providers.
+
+#### OAuth Clients
+
+As well as the Keycloak defaults, the BoltMCP Keycloak realm should already contain the following clients which are fundamental for the platform to function:
+
+- `boltmcp-web` - for the dashboard to authenticate users
+- `boltmcp-mcp-server` - for the MCP servers to authenticate users and agents
+- `boltmcp-rest-api-resource-server` - for the internal API to verify tokens
+
+In addition, two clients are pre-configured to streamline your first server setup:
+
+- `claude-client` - for configuring Claude
+- `boltmcp-mcp-server-to-rest-api` - for your first MCP server to authenticate users with the internal API, so that Claude can use the API
+
+#### Realms
+
+Everything related to BoltMCP lives in the `boltmcp` Keycloak realm, including the clients above and the `boltmcp_admin` user.
+
+For an evaluation deployment you shouldn't need access to the `master` realm. But for completeness, here are the master realm admin credentials:
+
+```bash title="get-master-realm-creds.sh"
+#!/usr/bin/env bash
+set -eo pipefail
+
+echo "Username:  master_admin"
+printf "Password:  "
+kubectl get secret boltmcp-auth -n boltmcp \
+  -o jsonpath='{.data.keycloak-admin-password}' | base64 -d
+echo
+```
+
+<Callout type="warning">
+  The admin console base URL e.g. `https://auth.<global.domain>` automatically redirects to the master realm, not the BoltMCP realm. Use the link in the BoltMCP dashboard sidebar to open the BoltMCP realm.
+</Callout>

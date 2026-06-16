@@ -6,6 +6,6 @@
     "cluster-prep",
     "deployment",
     "ingress-tls",
-    "authentication"
+    "sign-in"
   ]
 }
