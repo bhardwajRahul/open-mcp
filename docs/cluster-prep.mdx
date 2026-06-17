@@ -12,10 +12,10 @@ Before installing the chart you also need to pre-create three Kubernetes Secrets
 Export this once so the commands below can be pasted verbatim:
 
 ```bash
-export KEY_JSON_PATH=./keys/key.json
+export HELM_REGISTRY_CONFIG="$PWD/keys/boltmcp-key.json"
 ```
 
-Update the value of `KEY_JSON_PATH` if your key lives elsewhere.
+Update the value of `HELM_REGISTRY_CONFIG` if your key lives elsewhere.
 
 ## Create Namespace
 
@@ -30,11 +30,10 @@ kubectl create namespace boltmcp
 Create the pull secret in the `boltmcp` namespace so the cluster can pull images at runtime:
 
 ```bash
-kubectl create secret docker-registry boltmcp-pull-secret \
+kubectl create secret docker-registry \
+  boltmcp-pull-secret \
   -n boltmcp \
-  --docker-server=europe-west2-docker.pkg.dev \
-  --docker-username=_json_key \
-  --docker-password="$(cat ${KEY_JSON_PATH})"
+  --from-file=.dockerconfigjson=$HELM_REGISTRY_CONFIG
 ```
 
 The chart references this Secret by name via `global.imagePullSecrets`, which defaults to `boltmcp-pull-secret`. If you prefer a different Secret name, create it under that name here and override `global.imagePullSecrets` in your values file accordingly.
@@ -211,18 +210,3 @@ secrets:
   auth:
     name: my-org-boltmcp-auth
 ```
-
-## Authenticate Helm
-
-Log Helm into the registry on your workstation. This caches a credential at `~/.config/helm/registry/config.json`:
-
-```bash
-helm registry login \
-  --username _json_key \
-  --password-stdin \
-  europe-west2-docker.pkg.dev < ${KEY_JSON_PATH}
-```
-
-<Callout type="info">
-Helm v4 requires the bare hostname (no `https://` prefix). Helm v3 accepts both.
-</Callout>

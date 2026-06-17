@@ -75,7 +75,7 @@ Make sure you're logged into the relevant CLI (`gcloud auth login` / `aws config
 
 <Tabs groupId="cloud" items={['Google GKE', 'Amazon EKS', 'Azure AKS']}>
 <Tab value="Google GKE">
-https://docs.cloud.google.com/sdk/docs/install-sdk
+Create the cluster (5-10 minutes):
 
 ```bash
 gcloud container clusters create boltmcp-cluster \
@@ -104,22 +104,29 @@ export PATH="/opt/homebrew/share/google-cloud-sdk/bin:$PATH"
 ```
 </Tab>
 <Tab value="Amazon EKS">
-
-https://docs.aws.amazon.com/eks/latest/eksctl/installation.html
+Create the cluster (15-20 minutes):
 
 ```bash
 eksctl create cluster \
   --name boltmcp-cluster \
   --region eu-west-2 \
   --nodes 1 \
-  --node-type t3.large
+  --node-type m7i-flex.large
 ```
 
-eksctl automatically configures your kubeconfig.
+Connect kubectl:
+
+```bash
+aws eks update-kubeconfig \
+  --name boltmcp-cluster \
+  --region eu-west-2
+```
+
+<Callout>
+    kubectl should get connected automatically if the cluster created succcessfully, but the command above is required after fixing a partial or failed run.
+</Callout>
 </Tab>
 <Tab value="Azure AKS">
-https://learn.microsoft.com/en-us/cli/azure/install-azure-cli
-
 If this is the first time you're creating an AKS cluster in this subscription, register the `Microsoft.ContainerService` resource provider once (otherwise `az aks create` fails with `MissingSubscriptionRegistration`):
 
 ```bash
@@ -132,7 +139,7 @@ Registration runs in the background. Wait for it to report `Registered` before c
 az provider show -n Microsoft.ContainerService --query registrationState -o tsv
 ```
 
-Create the resource group and cluster:
+Create the resource group and cluster (5-10 minutes):
 
 ```bash
 az group create --name boltmcp-rg --location westeurope
