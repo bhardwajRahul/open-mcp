@@ -56,10 +56,16 @@ If `oidc.adminUser.email` is not a valid email structure, Keycloak will reject t
 Set a version once and reference it in subsequent commands. Use the latest release version you've been provided:
 
 ```bash
-export BOLTMCP_VERSION=0.0.89
+export BOLTMCP_VERSION=0.0.92
 ```
 
 ## Install the Chart
+
+If it isn't already, set the shell variable `HELM_REGISTRY_CONFIG` to point to your BoltMCP key file:
+
+```bash
+export HELM_REGISTRY_CONFIG="$PWD/keys/boltmcp-key.json"
+```
 
 ```bash
 helm install boltmcp \
