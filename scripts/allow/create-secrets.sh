@@ -12,8 +12,6 @@ kubectl create secret generic ${RELEASE}-database -n boltmcp \
 kubectl create secret generic ${RELEASE}-oidc -n boltmcp \
   --from-literal=web-client-secret="$(rand)" \
   --from-literal=mcp-server-client-secret="$(rand)" \
-  --from-literal=mcp-client-client-secret="$(rand)" \
-  --from-literal=mcp-server-to-rest-api-client-secret="$(rand)" \
   --from-literal=rest-api-resource-server-client-secret="$(rand)"
 
 kubectl create secret generic ${RELEASE}-auth -n boltmcp \
