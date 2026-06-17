@@ -7,7 +7,7 @@ description: Install the required CLI tools and provision a Kubernetes cluster r
 
 On the workstation you're installing from, you'll need:
 
-<Tabs groupId="cloud" items={['macOS', 'Linux', 'Windows']}>
+<Tabs groupId="OS" items={['macOS', 'Linux', 'Windows']}>
 <Tab value="macOS">
 - `kubectl v1.28+` to talk to your cluster &#xb7; [Install kubectl on macOS](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/)
 - `helm v3.12+` to install the BoltMCP chart on your cluster &#xb7; [Install helm on macOS](https://helm.sh/docs/intro/install/#from-homebrew-macos)
@@ -73,8 +73,8 @@ The cluster-creation commands below provision the **evaluation** tier (a single 
 Make sure you're logged into the relevant CLI (`gcloud auth login` / `aws configure` / `az login`) before running these commands. Cluster creation typically takes **5–10 minutes** for the evaluation tier — don't be alarmed if the command sits with no output for several minutes.
 </Callout>
 
-<Tabs groupId="cloud" items={['Google GKE', 'Amazon EKS', 'Azure AKS']}>
-<Tab value="Google GKE">
+<Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
+<Tab value="GKE">
 Create the cluster (5-10 minutes):
 
 ```bash
@@ -103,15 +103,14 @@ If you installed `gcloud` via Homebrew on macOS, the plugin binary lands in `/op
 export PATH="/opt/homebrew/share/google-cloud-sdk/bin:$PATH"
 ```
 </Tab>
-<Tab value="Amazon EKS">
-Create the cluster (15-20 minutes):
+<Tab value="EKS">
+Create the cluster (10-15 minutes):
 
 ```bash
 eksctl create cluster \
   --name boltmcp-cluster \
   --region eu-west-2 \
-  --nodes 1 \
-  --node-type m7i-flex.large
+  --enable-auto-mode
 ```
 
 Connect kubectl:
@@ -126,7 +125,7 @@ aws eks update-kubeconfig \
     kubectl should get connected automatically if the cluster created succcessfully, but the command above is required after fixing a partial or failed run.
 </Callout>
 </Tab>
-<Tab value="Azure AKS">
+<Tab value="AKS">
 If this is the first time you're creating an AKS cluster in this subscription, register the `Microsoft.ContainerService` resource provider once (otherwise `az aks create` fails with `MissingSubscriptionRegistration`):
 
 ```bash

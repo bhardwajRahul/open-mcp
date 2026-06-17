@@ -25,6 +25,45 @@ This namespace is where BoltMCP will be installed:
 kubectl create namespace boltmcp
 ```
 
+## Default StorageClass
+
+BoltMCP's bundled PostgreSQL requests persistent storage through a `PersistentVolumeClaim` that does **not** name a `storageClassName`, so it relies on the cluster having a **default** StorageClass. GKE and AKS ship one out of the box; **EKS does not** provide a usable default — an EKS Auto Mode cluster comes with only a non-default `gp2` class backed by the deprecated in-tree provisioner. Without a default, the database PVC stays `Pending` and the install stalls.
+
+<Callout type="warn">
+Create the default StorageClass **before** installing the chart. A PVC only adopts the cluster default at creation time, so adding one afterwards means deleting and recreating the database PVC.
+</Callout>
+
+Create a default `gp3` StorageClass (EKS):
+
+```yaml title="config/storageclass-gp3.yaml" extract="true"
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.eks.amazonaws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: gp3
+```
+
+```bash
+kubectl apply -f ./config/storageclass-gp3.yaml
+```
+
+<Callout type="info">
+The `ebs.csi.eks.amazonaws.com` provisioner is the one built into **EKS Auto Mode**. On a classic managed-node-group EKS cluster, install the [EBS CSI driver](https://github.com/kubernetes-sigs/aws-ebs-csi-driver) add-on instead and use its provisioner, `ebs.csi.aws.com`. GKE and AKS already have a suitable default StorageClass, so this step is EKS-only.
+</Callout>
+
+Verify it's marked default:
+
+```bash
+kubectl get storageclass
+# gp3 should be listed as (default)
+```
+
 ## Image Pull Secret
 
 Create the pull secret in the `boltmcp` namespace so the cluster can pull images at runtime:

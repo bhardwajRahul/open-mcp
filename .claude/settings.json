@@ -8,6 +8,6 @@
     ],
     "allow": ["Skill(install-boltmcp)", "Bash(./scripts/allow/*)"]
   },
-  "model": "sonnet",
-  "effortLevel": "high"
+  "model": "opus",
+  "effortLevel": "medium"
 }
