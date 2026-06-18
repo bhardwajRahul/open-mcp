@@ -60,8 +60,20 @@ helm install boltmcp \
   oci://europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/charts/boltmcp \
   --version ${BOLTMCP_VERSION} \
   -n boltmcp \
-  -f ./config/values-prod.yaml
+  -f ./config/values-prod.yaml \
+  --timeout 15m
 ```
+
+<Callout type="warn">
+**`--timeout 15m` is required on EKS Auto Mode.** `helm install` blocks on the
+database-migration Job that runs as a post-install hook. On a brand-new EKS Auto
+Mode cluster the `general-purpose` NodePool starts with zero nodes, and bringing
+up the first node (NodePool reconciliation + EC2 launch + node join) can take
+**6-7 minutes** - longer than Helm's default 5m hook timeout.
+
+On GKE/AKS, the first node is available immediately and you can safely reduce
+this to `--timeout 5m`.
+</Callout>
 
 This deploys all services into the `boltmcp` namespace. Migration jobs run first as Helm hooks, followed by application pods.
 
@@ -105,7 +117,8 @@ helm upgrade --install boltmcp \
   oci://europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/charts/boltmcp \
   --version ${BOLTMCP_VERSION} \
   -n boltmcp \
-  -f ./config/values-prod.yaml
+  -f ./config/values-prod.yaml \
+  --timeout 15m
 ```
 
 Once successful, set up Ingress & TLS to expose BoltMCP on your domain.

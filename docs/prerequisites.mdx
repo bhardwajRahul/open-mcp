@@ -181,8 +181,32 @@ kubectl config use-context <name>
 
 Finally, verify the cluster is ready:
 
+<Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
+<Tab value="GKE">
 ```bash
 kubectl get nodes
 ```
 
 All nodes should show `Ready` status.
+</Tab>
+<Tab value="EKS">
+On **EKS Auto Mode** there is no static node pool — nodes are provisioned on demand only when there are pods to schedule, so a freshly-created idle cluster has **zero nodes**. Don't use `kubectl get nodes` to verify access here; it returns `No resources found`, which looks like a failure but is expected. Confirm the API is reachable instead:
+
+```bash
+kubectl get ns
+```
+
+You should see the default namespaces (`default`, `kube-system`, …).
+
+<Callout type="info">
+The first nodes appear a few minutes after you deploy a workload (e.g. during `helm install`), once Auto Mode's `general-purpose` NodePool reconciles and launches capacity. At that point `kubectl get nodes` will list `Ready` nodes.
+</Callout>
+</Tab>
+<Tab value="AKS">
+```bash
+kubectl get nodes
+```
+
+All nodes should show `Ready` status.
+</Tab>
+</Tabs>
