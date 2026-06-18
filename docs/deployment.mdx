@@ -3,12 +3,6 @@ title: Deployment
 description: Configure your values file, install the Helm chart, and verify the running services.
 ---
 
-This page walks through assembling a `values-prod.yaml`, installing the Helm chart into the `boltmcp` namespace, and confirming all pods come up healthy.
-
-<Callout type="info">
-Before running `helm install`, make sure you've completed [Cluster Prep](./cluster-prep) — the three application Secrets (`boltmcp-database`, `boltmcp-oidc`, `boltmcp-auth`) must already exist in the namespace, with all the required keys, and (on EKS) a [default StorageClass](./cluster-prep#default-storageclass) must exist so the bundled database's volume can bind. `helm install` runs database-migration Jobs as post-install hooks, and Keycloak self-provisions the `boltmcp` realm from a mounted ConfigMap on first start; if any required Secret or key is missing, the hooks fail (or Keycloak crashes on import) and `helm install` exits non-zero. Re-running after creating the Secrets is safe — see [Retrying a failed install](#retrying-a-failed-install) below.
-</Callout>
-
 ## Values File Template
 
 Create a `values-prod.yaml` file and update the values accordingly:
@@ -20,24 +14,16 @@ global:
   # Recommended: choose the `boltmcp` subdomain of your company's domain.
   domain: "boltmcp.example.com"
 
+  # Storage class for the bundled database's persistent volume. Leave unset
+  # to use the cluster default (GKE/AKS ship one). On EKS, set this to the
+  # class you created in Cluster Prep.
+  # storageClass: gp3
+
 oidc:
   adminUser:
     # Email for the first admin user (must be a real email address).
     email: "admin@example.com"
 ```
-
-<Callout type="warn">
-**Realm import is create-if-not-exists.** Keycloak provisions the `boltmcp` realm only on first start. Changing OIDC values (client IDs, base URLs, `oidc.adminUser.email`, etc.) on a subsequent `helm upgrade` updates the rendered ConfigMap but does **not** retroactively edit the live realm. To re-apply changes, delete the realm via the Keycloak admin console (or `kcadm.sh delete realms/boltmcp`) and restart the Keycloak Pod.
-</Callout>
-
-<Callout type="info">
-**Need non-standard hostnames?** If your platform team won't give you the `<svc>.<domain>` subdomains the chart derives by default, override individual URLs with `web.baseUrl`, `mcpServer.baseUrl`, `mcpInspector.baseUrl`, `keycloak.hostname`, and `oidc.issuerUrl`. With all five set, `global.domain` becomes optional.
-</Callout>
-
-## Security Considerations
-
-- `values-prod.yaml` should not contain any sensitive material under this model — it's safe to commit if your other configuration is shareable.
-- Application Secrets live in three Kubernetes Secrets that you manage out-of-band. See [Cluster Prep → Application Secrets](./cluster-prep#application-secrets) for the supported approaches (kubectl, ESO, Sealed Secrets, SOPS).
 
 ## Pin a Chart Version
 
@@ -49,11 +35,17 @@ export BOLTMCP_VERSION=0.0.92
 
 ## Install the Chart
 
-If it isn't already, set the shell variable `HELM_REGISTRY_CONFIG` to point to your BoltMCP key file:
+<Callout type="info">
+Before installing BoltMCP, make sure you've completed [Cluster Preparation](./cluster-preparation)
+</Callout>
+
+If it isn't already, set the shell variable `HELM_REGISTRY_CONFIG` to point to your BoltMCP key file. This is used implicitly to authorize Helm commands.
 
 ```bash
 export HELM_REGISTRY_CONFIG="$PWD/keys/boltmcp-key.json"
 ```
+
+Deploy all services into the `boltmcp` namespace:
 
 ```bash
 helm install boltmcp \
@@ -65,17 +57,12 @@ helm install boltmcp \
 ```
 
 <Callout type="warn">
-**`--timeout 15m` is required on EKS Auto Mode.** `helm install` blocks on the
-database-migration Job that runs as a post-install hook. On a brand-new EKS Auto
+**`--timeout 15m` is required on EKS Auto Mode.** On a brand-new EKS Auto
 Mode cluster the `general-purpose` NodePool starts with zero nodes, and bringing
-up the first node (NodePool reconciliation + EC2 launch + node join) can take
-**6-7 minutes** - longer than Helm's default 5m hook timeout.
-
-On GKE/AKS, the first node is available immediately and you can safely reduce
-this to `--timeout 5m`.
+up the first node can take longer than Helm's default 5m hook timeout. The default
+is generally sufficient for GKE/AKS deployments.
 </Callout>
 
-This deploys all services into the `boltmcp` namespace. Migration jobs run first as Helm hooks, followed by application pods.
 
 ## Verify the Deployment
 
@@ -108,7 +95,7 @@ kubectl describe pod -n boltmcp <pod-name>
 
 ### Retrying a failed install
 
-If `helm install` fails (for example, a migration hook fails on first run), the release is left in `failed` state and a plain `helm install` will error with `cannot re-use a name that is still in use`. Fix the underlying issue (check the migration job's pod logs first), delete the failed job so a fresh one is created, then retry with `helm upgrade --install` — it's idempotent and re-triggers Helm hooks against the existing release:
+If the install fails, the release is left in `failed` state and another plain `helm install` will error with *"cannot re-use a name that is still in use"*. Check the failed job's pod logs to fix the underlying issue before deleting the job so a fresh one is created, then retry with `helm upgrade --install`:
 
 ```bash
 kubectl delete job -n boltmcp <failed-job-name>

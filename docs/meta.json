@@ -1,11 +1,13 @@
 {
   "pages": [
-    "index",
     "---Getting Started---",
+    "index",
     "prerequisites",
-    "cluster-prep",
+    "cluster-provisioning",
+    "cluster-preparation",
     "deployment",
     "ingress-tls",
-    "sign-in"
+    "sign-in",
+    "uninstall"
   ]
 }

@@ -1,0 +1,172 @@
+---
+title: Cluster Provisioning
+description: Provision a Kubernetes cluster ready for BoltMCP.
+---
+
+## Cluster Requirements
+
+BoltMCP runs on any conformant Kubernetes cluster (v1.28+). Pick the tier that matches your deployment:
+
+| Tier | Nodes | Per-node spec | Suitable for |
+| --- | --- | --- | --- |
+| **Evaluation** | 1 | 2 vCPU, 8 GiB RAM | Trying BoltMCP, demos, throwaway dev clusters |
+| **Production (minimum)** | 3 | 2 vCPU, 8 GiB RAM | Internal use, small teams, single-region |
+| **Production (recommended)** | 3 | 4 vCPU, 16 GiB RAM | Customer-facing, room to scale replicas and run upgrades |
+
+A few notes on how these numbers are derived:
+
+- **Why 3 nodes for production.** Rolling upgrades and node failures both take a node out of service. With 3 nodes, losing one during an upgrade still leaves a healthy majority, and pods on the failed node can reschedule onto the survivors. A 2-node cluster offers no margin.
+- **Why the per-node floor matters.** Each node loses ~1 vCPU and ~1.5 GiB to the kubelet, OS, and platform agents (CNI, DNS, logging, metrics) before any BoltMCP pod runs. Two small nodes are not equivalent to one larger node.
+- **Postgres.** The bundled Postgres is suitable for evaluation and small production deployments. For higher-traffic or compliance-sensitive workloads, point BoltMCP at a managed Postgres (Cloud SQL, RDS, Azure Database for PostgreSQL) and disable the bundled instance.
+- **Keycloak.** Defaults to a single replica. For HA, scale to ≥2 replicas with a shared cache and sticky sessions at the ingress.
+- **Ingress controller.** Not required at `helm install` time — pods will start and run without one. You'll install an ingress controller and configure TLS afterwards to expose the services externally (see the Ingress & TLS page).
+
+## Create a Cluster
+
+<Callout type="info">
+    If you already have a suitable cluster, skip this page.
+</Callout>
+
+The cluster-creation commands below provision the **evaluation** tier (a single small node) and are intended for demos and exploration only. For production deployments, increase the node count and machine type to match an appropriate tier from the table above.
+
+<Callout type="info">
+Make sure you'rve logged into the relevant CLI (`gcloud auth login` / `aws configure` / `az login`) before running these commands.
+</Callout>
+
+<Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
+<Tab value="GKE">
+Create the cluster (5-10 minutes):
+
+```bash
+gcloud container clusters create boltmcp-cluster \
+  --zone europe-west2-a \
+  --num-nodes 1 \
+  --machine-type e2-standard-2
+```
+
+Connect kubectl:
+
+```bash
+gcloud container clusters get-credentials boltmcp-cluster \
+  --zone europe-west2-a
+```
+
+`kubectl` needs the `gke-gcloud-auth-plugin` to authenticate against GKE. Install it as a `gcloud` component:
+
+```bash
+gcloud components install gke-gcloud-auth-plugin
+```
+
+If you installed `gcloud` via Homebrew on macOS, the plugin binary lands in `/opt/homebrew/share/google-cloud-sdk/bin`, which is not on `PATH` by default. Add it to your shell config (`~/.zshrc` or `~/.bashrc`):
+
+```bash
+export PATH="/opt/homebrew/share/google-cloud-sdk/bin:$PATH"
+```
+</Tab>
+<Tab value="EKS">
+Create the cluster (10-15 minutes):
+
+```bash
+eksctl create cluster \
+  --name boltmcp-cluster \
+  --region eu-west-2 \
+  --enable-auto-mode
+```
+
+Connect kubectl:
+
+```bash
+aws eks update-kubeconfig \
+  --name boltmcp-cluster \
+  --region eu-west-2
+```
+
+<Callout>
+    kubectl should get connected automatically if the cluster created succcessfully, but the command above is required after fixing a partial or failed run.
+</Callout>
+</Tab>
+<Tab value="AKS">
+If this is the first time you're creating an AKS cluster in this subscription, register the `Microsoft.ContainerService` resource provider once (otherwise `az aks create` fails with `MissingSubscriptionRegistration`):
+
+```bash
+az provider register --namespace Microsoft.ContainerService
+```
+
+Registration runs in the background. Wait for it to report `Registered` before continuing:
+
+```bash
+az provider show -n Microsoft.ContainerService --query registrationState -o tsv
+```
+
+Create the resource group and cluster (5-10 minutes):
+
+```bash
+az group create --name boltmcp-rg --location westeurope
+
+az aks create \
+  --resource-group boltmcp-rg \
+  --name boltmcp-cluster \
+  --node-count 1 \
+  --node-vm-size Standard_D2s_v3 \
+  --generate-ssh-keys
+```
+
+Connect kubectl:
+
+```bash
+az aks get-credentials \
+  --resource-group boltmcp-rg \
+  --name boltmcp-cluster
+```
+</Tab>
+</Tabs>
+
+## Verify Cluster Access
+
+Confirm `kubectl` is pointing at the cluster you intend to install into:
+
+```bash
+kubectl config current-context
+```
+
+If it's not the right one, list the available contexts and switch:
+
+```bash
+kubectl config get-contexts
+```
+
+```bash
+kubectl config use-context <name>
+```
+
+Finally, verify the cluster is ready:
+
+<Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
+<Tab value="GKE">
+```bash
+kubectl get nodes
+```
+
+All nodes should show `Ready` status.
+</Tab>
+<Tab value="EKS">
+On **EKS Auto Mode** there is no static node pool — nodes are provisioned on demand only when there are pods to schedule, so a freshly-created idle cluster has **zero nodes**. Don't use `kubectl get nodes` to verify access here; it returns `No resources found`, which looks like a failure but is expected. Confirm the API is reachable instead:
+
+```bash
+kubectl get ns
+```
+
+You should see the default namespaces (`default`, `kube-system`, …).
+
+<Callout type="info">
+The first nodes appear a few minutes after you deploy a workload (e.g. during `helm install`), once Auto Mode's `general-purpose` NodePool reconciles and launches capacity. At that point `kubectl get nodes` will list `Ready` nodes.
+</Callout>
+</Tab>
+<Tab value="AKS">
+```bash
+kubectl get nodes
+```
+
+All nodes should show `Ready` status.
+</Tab>
+</Tabs>
