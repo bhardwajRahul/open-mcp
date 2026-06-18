@@ -1,0 +1,166 @@
+---
+title: Cluster Preparation
+description: Create the boltmcp namespace, add the image pull secret, create three application Secrets, and authenticate Helm against the BoltMCP container registry.
+---
+
+BoltMCP's Helm chart and container images are both hosted in a private Google Artifact Registry. You should have received a `key.json` service account key file for access — the same key authenticates both Helm (to pull the chart) and your Kubernetes cluster (to pull images at runtime).
+
+Before installing the chart you also need to pre-create three Kubernetes Secrets that BoltMCP reads at runtime (database passwords, OIDC client secrets, and auth tokens). The chart does not generate these — you control how they are populated.
+
+## Locate BoltMCP key file
+
+Export the path to your key file as the shell variable `HELM_REGISTRY_CONFIG`:
+
+```bash
+export HELM_REGISTRY_CONFIG="$PWD/keys/boltmcp-key.json"
+```
+
+<Callout type="info">
+    This variable is used explicitly by `kubectl` below, and implicitly by every `helm` command on the following pages.
+</Callout>
+
+## Create Namespace
+
+This namespace is where BoltMCP will be installed:
+
+```bash
+kubectl create namespace boltmcp
+```
+
+## StorageClass
+
+BoltMCP's bundled PostgreSQL stores its data on a `PersistentVolumeClaim`. The cluster fulfils that claim by dynamically provisioning a volume through a StorageClass, so it must have an appropriate StorageClass available before you install the chart — otherwise the database PVC stays `Pending` and the install stalls.
+
+List what the cluster already provides:
+
+```bash
+kubectl get storageclass
+```
+
+Most managed clusters ship a suitable class out of the box: **GKE** and **AKS** both come with a usable default, so this command will list one and there is nothing more to do here.
+
+An **appropriate** StorageClass for BoltMCP is one that:
+
+- **provisions dynamically** — it has a real CSI provisioner (not `kubernetes.io/no-provisioner`), so it can create a volume on demand without a pre-existing `PersistentVolume`;
+- **supports `ReadWriteOnce`** — the database mounts the volume read-write on a single node. Block storage (AWS EBS, GCE PD, Azure Disk) is the right fit; avoid network-file classes (EFS, Filestore, Azure Files), whose semantics don't suit PostgreSQL.
+
+It is also worth having `allowVolumeExpansion: true` (so the volume can grow later) and `volumeBindingMode: WaitForFirstConsumer` (so the volume is provisioned in the same zone the database pod is scheduled to — important on multi-zone clusters), though neither is strictly required.
+
+If no appropriate StorageClass exists, create one. The common case is **EKS Auto Mode**: a fresh cluster comes with only a non-default `gp2` class backed by the deprecated in-tree provisioner, so add a CSI-backed `gp3` class instead:
+
+```yaml title="config/storageclass-gp3.yaml" extract="true"
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+provisioner: ebs.csi.eks.amazonaws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: gp3
+```
+
+```bash
+kubectl apply -f ./config/storageclass-gp3.yaml
+```
+
+<Callout type="info">
+The `ebs.csi.eks.amazonaws.com` provisioner is the one built into **EKS Auto Mode**. On a classic managed-node-group EKS cluster, install the [EBS CSI driver](https://github.com/kubernetes-sigs/aws-ebs-csi-driver) add-on instead and use its provisioner, `ebs.csi.aws.com`.
+</Callout>
+
+## Image Pull Secret
+
+Create the pull secret in the `boltmcp` namespace so the cluster can pull images at runtime:
+
+```bash
+kubectl create secret docker-registry \
+  boltmcp-pull-secret \
+  -n boltmcp \
+  --from-file=.dockerconfigjson=$HELM_REGISTRY_CONFIG
+```
+
+The chart references this Secret by name via `global.imagePullSecrets`, which defaults to `boltmcp-pull-secret`. If you prefer a different Secret name, create it under that name here and override `global.imagePullSecrets` in your values file accordingly.
+
+## Application Secrets
+
+BoltMCP reads passwords and tokens from three user-managed Kubernetes Secrets. The chart never creates them. Make sure all three Secrets exist with every required key populated before moving on to the deployment step.
+
+The Secret names are derived from the Helm release name as:
+- `<release>-database`
+- `<release>-oidc`
+- `<release>-auth`
+
+Here we assume the default release name `boltmcp`:
+
+### Required keys
+
+**`boltmcp-database`**
+
+| Key | Used for |
+|---|---|
+| `superuser-password` | PostgreSQL superuser password |
+| `migrate-core-password` | DB password for the migration role |
+| `web-password` | DB password for the BoltMCP web app |
+| `rest-api-password` | DB password for the REST API |
+| `mcp-server-password` | DB password for the MCP server |
+| `keycloak-password` | DB password for Keycloak |
+
+**`boltmcp-oidc`**
+
+| Key | Used for |
+|---|---|
+| `web-client-secret` | OIDC client secret for the web app |
+| `mcp-server-client-secret` | OIDC client secret for the MCP server |
+| `rest-api-resource-server-client-secret` | OIDC client secret used by the REST API to verify tokens. |
+
+<Callout type="info">
+    Other OIDC clients created by BoltMCP are either public or have their passwords automatically set by Keycloak.
+</Callout>
+
+**`boltmcp-auth`**
+
+| Key | Used for |
+|---|---|
+| `web-auth-secret` | Session signing key for the web app (≥ 32 chars) |
+| `keycloak-admin-password` | Master-realm Keycloak operator password (break-glass admin-console login) |
+| `boltmcp-admin-password` | Password for the first user in the BoltMCP Keycloak realm |
+| `mcp-inspector-proxy-auth-token` | Proxy auth token |
+
+### Manual with `kubectl` (simplest)
+
+Generate random values inline and create all three Secrets in one shot. This is the fastest path for evaluation installs and any environment where you don't already have a secrets manager. Update `RELEASE` below if you plan to install the chart with a custom release name.
+
+```bash title="create-secrets.sh" extract="true" bucket="allow"
+RELEASE=boltmcp
+rand() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-32; }
+
+kubectl create secret generic ${RELEASE}-database -n boltmcp \
+  --from-literal=superuser-password="$(rand)" \
+  --from-literal=migrate-core-password="$(rand)" \
+  --from-literal=web-password="$(rand)" \
+  --from-literal=rest-api-password="$(rand)" \
+  --from-literal=mcp-server-password="$(rand)" \
+  --from-literal=keycloak-password="$(rand)"
+
+kubectl create secret generic ${RELEASE}-oidc -n boltmcp \
+  --from-literal=web-client-secret="$(rand)" \
+  --from-literal=mcp-server-client-secret="$(rand)" \
+  --from-literal=rest-api-resource-server-client-secret="$(rand)"
+
+kubectl create secret generic ${RELEASE}-auth -n boltmcp \
+  --from-literal=web-auth-secret="$(rand)" \
+  --from-literal=keycloak-admin-password="$(rand)" \
+  --from-literal=boltmcp-admin-password="$(rand)" \
+  --from-literal=mcp-inspector-proxy-auth-token="$(rand)"
+```
+
+To retrieve a value later (assuming release name `boltmcp`):
+
+```bash
+kubectl get secret boltmcp-auth -n boltmcp \
+  -o jsonpath='{.data.boltmcp-admin-password}' | base64 -d; echo
+```
+
+### Alternatives
+
+The manual approach above is the simplest path, but if you already run a secrets-management workflow you can populate the same three Secrets from it instead. With the *External Secrets Operator* you sync the values from HashiCorp Vault or a cloud secrets manager (AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, 1Password) into Kubernetes Secrets; with *Sealed Secrets* or *SOPS* you keep the encrypted source material in Git and let an in-cluster controller (or your GitOps tool) materialise the plain Secrets.

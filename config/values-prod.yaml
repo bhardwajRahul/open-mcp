@@ -4,6 +4,11 @@ global:
   # Recommended: choose the `boltmcp` subdomain of your company's domain.
   domain: "boltmcp.example.com"
 
+  # Storage class for the bundled database's persistent volume. Leave unset
+  # to use the cluster default (GKE/AKS ship one). On EKS, set this to the
+  # class you created in Cluster Prep.
+  # storageClass: gp3
+
 oidc:
   adminUser:
     # Email for the first admin user (must be a real email address).
