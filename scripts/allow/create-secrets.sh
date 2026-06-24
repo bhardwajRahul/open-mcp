@@ -7,7 +7,8 @@ kubectl create secret generic ${RELEASE}-database -n boltmcp \
   --from-literal=web-password="$(rand)" \
   --from-literal=rest-api-password="$(rand)" \
   --from-literal=mcp-server-password="$(rand)" \
-  --from-literal=keycloak-password="$(rand)"
+  --from-literal=keycloak-password="$(rand)" \
+  --from-literal=vault-password="$(rand)"
 
 kubectl create secret generic ${RELEASE}-oidc -n boltmcp \
   --from-literal=web-client-secret="$(rand)" \
