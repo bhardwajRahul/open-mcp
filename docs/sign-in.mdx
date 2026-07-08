@@ -63,6 +63,10 @@ MCP clients such as Claude don't need a pre-configured client: they register the
 
 Everything related to BoltMCP lives in the `boltmcp` Keycloak realm, including the clients above and the `boltmcp_admin` user.
 
+<Callout type="warning">
+  The admin console base URL e.g. `https://auth.<global.domain>` automatically redirects to the master realm, not the BoltMCP realm. Use the link in the BoltMCP dashboard sidebar to open the BoltMCP realm.
+</Callout>
+
 For an evaluation deployment you shouldn't need access to the `master` realm. But for completeness, here are the master realm admin credentials:
 
 ```bash title="get-master-realm-creds.sh"
@@ -75,7 +79,3 @@ kubectl get secret boltmcp-auth -n boltmcp \
   -o jsonpath='{.data.keycloak-admin-password}' | base64 -d
 echo
 ```
-
-<Callout type="warning">
-  The admin console base URL e.g. `https://auth.<global.domain>` automatically redirects to the master realm, not the BoltMCP realm. Use the link in the BoltMCP dashboard sidebar to open the BoltMCP realm.
-</Callout>

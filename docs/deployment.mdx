@@ -106,9 +106,3 @@ helm upgrade --install boltmcp \
   -f ./config/values-prod.yaml \
   --timeout 15m
 ```
-
-## Vault (optional)
-
-The bundled Vault (`boltmcp-vault`) is deployed enabled by default but boots **sealed and uninitialized**, and `boltmcp-rest-api` only uses it after a one-time init / unseal / bootstrap. This is optional — the rest of the stack runs without it (the REST API's secret endpoints simply return 503/502 until it's set up). See the [Vault](./vault) page when you're ready to enable it, or set `vault.enabled: false` to skip it.
-
-Once successful, set up Ingress & TLS to expose BoltMCP on your domain.
