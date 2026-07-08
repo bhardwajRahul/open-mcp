@@ -4,7 +4,9 @@
     "deny": [
       "Bash(kubectl get secret *)",
       "Read(./keys/**/*.json)",
-      "Bash(./scripts/deny/*)"
+      "Bash(./scripts/deny/*)",
+      "Bash(*vault operator *)",
+      "Bash(*vault login *)"
     ],
     "allow": ["Skill(install-boltmcp)", "Bash(./scripts/allow/*)"]
   },

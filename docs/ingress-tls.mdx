@@ -3,11 +3,9 @@ title: Ingress & TLS
 description: Expose BoltMCP publicly. Reference setup with NGINX Ingress Controller and automatic HTTPS certificates.
 ---
 
-<Callout type="warn">
-**The BoltMCP chart does not manage cluster ingress.** It expects you to provision your own Ingress / Gateway / load balancer that terminates TLS and routes the BoltMCP hostnames to the in-cluster services. If your platform team handles ingress, hand them the [hostnames table](#what-boltmcp-needs-from-your-ingress) below and skip the rest of this page.
+The BoltMCP chart doesn't manage cluster ingress. It expects you to provision your own ingress / gateway / load balancer that terminates TLS and routes the BoltMCP hostnames to the in-cluster services.
 
-The walkthrough that follows is a **reference setup** using NGINX Ingress Controller, cert-manager, and Let's Encrypt — adapt it for your environment, or replace it entirely with whatever ingress your cluster already runs.
-</Callout>
+If your platform team handles ingress, hand them the hostnames table below and skip the rest of this page. The walkthrough that follows is a reference setup using NGINX Ingress Controller, cert-manager, and Let's Encrypt - adapt it for your environment, or replace it entirely with whatever ingress your cluster already runs.
 
 ## What BoltMCP needs from your ingress
 
@@ -24,22 +22,13 @@ If you've overridden any of `web.baseUrl`, `mcpServer.baseUrl`, `mcpInspector.ba
 
 One NGINX-specific annotation is commonly needed:
 
-- `nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"` — required for Keycloak's large authentication headers.
+- `nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"` - required for Keycloak's large authentication headers.
 
 The equivalent setting exists on most ingress implementations; check your platform's docs.
 
 ## Reference setup
 
 The rest of this page walks through one common setup: NGINX Ingress Controller, cert-manager for automatic TLS, and DNS-based routing. Skip if your cluster already has these.
-
-### Why NGINX Ingress Controller
-
-| Option | Best For | Trade-offs |
-|--------|----------|------------|
-| **NGINX Ingress** (this guide) | cert-manager compatibility, portability | Extra component to manage |
-| **GKE Ingress** | Simple GKE deployments | Poor cert-manager HTTP-01 support |
-| **Traefik** | Built-in ACME support | Different configuration style |
-| **Gateway API** | Modern Kubernetes standard | Fewer cert-manager examples |
 
 ### Install NGINX Ingress Controller
 
@@ -58,7 +47,7 @@ helm install ingress-nginx ingress-nginx/ingress-nginx \
 ```
 </Tab>
 <Tab value="EKS">
-On EKS — and especially **EKS Auto Mode** — the integrated AWS Load Balancer Controller provisions a `LoadBalancer` Service as **`internal`** by default, which leaves the ingress unreachable from the public internet (and from Let's Encrypt's HTTP-01 validation). Set the `aws-load-balancer-scheme` annotation so the NLB is **internet-facing** from the start:
+On EKS - and especially **EKS Auto Mode** - the integrated AWS Load Balancer Controller provisions a `LoadBalancer` Service as **`internal`** by default, which leaves the ingress unreachable from the public internet (and from Let's Encrypt's HTTP-01 validation). Set the `aws-load-balancer-scheme` annotation so the NLB is **internet-facing** from the start:
 
 ```bash
 helm install ingress-nginx ingress-nginx/ingress-nginx \
@@ -69,7 +58,7 @@ helm install ingress-nginx ingress-nginx/ingress-nginx \
 ```
 
 <Callout type="warn">
-The load balancer **scheme is immutable**. If you install without this annotation and add it later, the controller deletes the internal NLB and creates a fresh internet-facing one with a **different hostname** — so any DNS records you've already pointed at the old hostname must be updated, and you'll wait out their TTL while resolution converges. Setting it up front avoids that churn.
+The load balancer **scheme is immutable**. If you install without this annotation and add it later, the controller deletes the internal NLB and creates a fresh internet-facing one with a **different hostname** - so any DNS records you've already pointed at the old hostname must be updated, and you'll wait out their TTL while resolution converges. Setting it up front avoids that churn.
 </Callout>
 </Tab>
 <Tab value="AKS">
@@ -111,11 +100,9 @@ ingress-nginx-controller   LoadBalancer   xx.x.xxx.xx   x.xxx.xxx.xxx   80:32695
 </Tab>
 </Tabs>
 
-Note the `EXTERNAL-IP` once it appears — you'll need it for DNS. On **GKE** and **AKS** this is an **IP address**; on **EKS** the default load balancer is a Classic ELB, so it's a **DNS hostname** (e.g. `…elb.amazonaws.com`). Which one you get decides the DNS record type you'll create below — an **A** record for an IP, a **CNAME** for a hostname.
-
 ### Reserve a Stable Address
 
-Give the load balancer a **stable address** so your DNS records stay valid across restarts. What this takes — or whether you need to do anything at all — depends on your cloud.
+Give the load balancer a **stable address** so your DNS records stay valid across restarts. Whether you need to do anything here depends on your cloud:
 
 <Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
 <Tab value="GKE">
@@ -133,10 +120,10 @@ gcloud compute addresses create boltmcp-ingress-ip \
 ```
 </Tab>
 <Tab value="EKS">
-The default `ingress-nginx` install provisions a **Classic ELB**, and its DNS hostname (the `EXTERNAL-IP` you noted above) is **already stable for the life of the Service** — it survives pod, node, and controller restarts. There is nothing to reserve: note the hostname and point DNS at it with a **CNAME** in the next step.
+The default `ingress-nginx` install provisions a **Classic ELB**, and its DNS hostname is **already stable for the life of the Service** - it survives pod, node, and controller restarts. There is nothing to reserve: note the hostname and point DNS at it with a **CNAME** in the next step.
 
 <Callout type="info">
-You only need a literal static **IP** on EKS if something external must allowlist a fixed address, or you've overridden a BoltMCP service hostname to a **zone apex** (where CNAMEs aren't permitted — see the DNS step). In that case, provision a **Network Load Balancer (NLB) with Elastic IPs** instead of the default Classic ELB: install the [AWS Load Balancer Controller](https://kubernetes-sigs.github.io/aws-load-balancer-controller/), then recreate the controller Service as an NLB with the annotations `service.beta.kubernetes.io/aws-load-balancer-type: external` and `service.beta.kubernetes.io/aws-load-balancer-eip-allocations` set to one pre-allocated Elastic IP **per public subnet (AZ)**. The EIP allocations must be set when the NLB is first created — they cannot be attached to an existing Classic ELB by annotation.
+You only need a literal static **IP** on EKS if something external must allowlist a fixed address, or you've overridden a BoltMCP service hostname to a **zone apex** (where CNAMEs aren't permitted - see the DNS step). In that case, provision a **Network Load Balancer (NLB) with Elastic IPs** instead of the default Classic ELB: install the AWS Load Balancer Controller, then recreate the controller Service as an NLB with the annotations `service.beta.kubernetes.io/aws-load-balancer-type: external` and `service.beta.kubernetes.io/aws-load-balancer-eip-allocations` set to one pre-allocated Elastic IP **per public subnet (AZ)**. The EIP allocations must be set when the NLB is first created - they cannot be attached to an existing Classic ELB by annotation.
 </Callout>
 </Tab>
 <Tab value="AKS">
@@ -156,7 +143,7 @@ az network public-ip create \
   --location westeurope
 ```
 
-The `--location` should match the region of your AKS node resource group. The `create` command's JSON response includes the assigned `ipAddress` — note it down. If you lose it, look it up again with `az network public-ip show -g $NODE_RG -n boltmcp-ingress-ip --query ipAddress -o tsv`.
+The `--location` should match the region of your AKS node resource group. The `create` command's JSON response includes the assigned `ipAddress` - note it down. If you lose it, look it up again with `az network public-ip show -g $NODE_RG -n boltmcp-ingress-ip --query ipAddress -o tsv`.
 
 Set the IP on the ingress controller:
 
@@ -168,7 +155,7 @@ helm upgrade ingress-nginx ingress-nginx/ingress-nginx \
 ```
 
 <Callout type="warn">
-On AKS — unlike GKE and EKS — the load balancer's external IP **changes** when you run this upgrade: Azure swaps the ephemeral IP for your reserved one. Update any in-progress DNS work to use the new IP.
+On AKS - unlike GKE and EKS - the load balancer's external IP **changes** when you run this upgrade: Azure swaps the ephemeral IP for your reserved one. Update any in-progress DNS work to use the new IP.
 </Callout>
 </Tab>
 </Tabs>
@@ -178,12 +165,12 @@ On AKS — unlike GKE and EKS — the load balancer's external IP **changes** wh
 Point each BoltMCP subdomain at the load balancer. The **record type** depends on what the previous steps gave you, and the **hostname** values depend on whether your `global.domain` matches the DNS hosted zone.
 
 - If your load balancer is an **IP address** (GKE, AKS, or an EKS NLB+EIP), create **A** records.
-- If it's a **DNS hostname** (the default EKS Classic ELB), create **CNAME** records — a raw hostname can't go in an A record.
+- If it's a **DNS hostname** (the default EKS Classic ELB), create **CNAME** records - a raw hostname can't go in an A record.
 
 In the tables below, **`<lb-endpoint>`** is the `EXTERNAL-IP` you noted earlier (an IP _or_ a hostname) and **`<record-type>`** is `A` for an IP or `CNAME` for a hostname.
 
 <Callout type="info">
-BoltMCP's hostnames are always `web.`, `auth.`, `server.`, and `inspector.` prefixed, so they're never a zone apex — a wildcard or per-service **CNAME** is always valid for the EKS hostname case. The apex restriction only matters if you've overridden a service URL to a bare apex domain; there, use your provider's ALIAS/ANAME record (or a Route 53 *Alias*) instead of a CNAME, or switch to an IP and an A record.
+BoltMCP's hostnames are always `web.`, `auth.`, `server.`, and `inspector.` prefixed, so they're never a zone apex - a wildcard or per-service **CNAME** is always valid for the EKS hostname case. The apex restriction only matters if you've overridden a service URL to a bare apex domain; there, use your provider's ALIAS/ANAME record (or a Route 53 *Alias*) instead of a CNAME, or switch to an IP and an A record.
 </Callout>
 
 <Tabs groupId="dns-zone" items={['Subdomain of zone', 'Domain matches zone']}>
@@ -248,7 +235,7 @@ for h in web auth server inspector; do
 done
 ```
 
-Each line should resolve to your load balancer — directly to the IP for **A** records, or to the load balancer hostname (and, below it, the IPs it points to) for **CNAME** records. Replace `<domain>` with your `global.domain` value.
+Each line should resolve to your load balancer - directly to the IP for **A** records, or to the load balancer hostname (and, below it, the IPs it points to) for **CNAME** records. Replace `<domain>` with your `global.domain` value.
 
 ### Install cert-manager
 
@@ -272,6 +259,10 @@ kubectl get pods -n cert-manager
 
 Start with a **staging** issuer for testing (avoids Let's Encrypt rate limits):
 
+```bash
+kubectl apply -f ./config/cluster-issuer-staging.yaml
+```
+
 ```yaml title="config/cluster-issuer-staging.yaml" extract="true"
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
@@ -289,11 +280,7 @@ spec:
             class: nginx
 ```
 
-Replace `your-email@example.com` with a mailbox you actually monitor. Let's Encrypt uses this address to warn you when a certificate is approaching expiry without having auto-renewed — it's your only signal that renewal is broken before the cert goes down.
-
-```bash
-kubectl apply -f ./config/cluster-issuer-staging.yaml
-```
+Replace `your-email@example.com` with a mailbox you actually monitor. Let's Encrypt uses this address to warn you when a certificate is approaching expiry without having auto-renewed - it's your only signal that renewal is broken before the cert goes down.
 
 Verify:
 
@@ -303,6 +290,10 @@ kubectl get clusterissuer
 ```
 
 ### Create the Ingress Resource
+
+```bash
+kubectl apply -f ./config/boltmcp-ingress.yaml
+```
 
 ```yaml title="config/boltmcp-ingress.yaml" extract="true"
 apiVersion: networking.k8s.io/v1
@@ -367,10 +358,6 @@ spec:
 
 The `proxy-buffer-size` annotation is required for Keycloak's large authentication headers.
 
-```bash
-kubectl apply -f ./config/boltmcp-ingress.yaml
-```
-
 Watch certificate provisioning:
 
 ```bash
@@ -381,6 +368,10 @@ kubectl get certificates -n boltmcp -w
 ### Switch to Production Certificates
 
 Once everything works with staging certificates, create a production issuer:
+
+```bash
+kubectl apply -f ./config/cluster-issuer-production.yaml
+```
 
 ```yaml title="config/cluster-issuer-production.yaml" extract="true"
 apiVersion: cert-manager.io/v1
@@ -400,10 +391,6 @@ spec:
 ```
 
 Again, replace `your-email@example.com` with a monitored mailbox so you receive Let's Encrypt's renewal-failure warnings.
-
-```bash
-kubectl apply -f ./config/cluster-issuer-production.yaml
-```
 
 Update the ingress annotation in `boltmcp-ingress.yaml` (edit the file on disk, not the live resource):
 
@@ -430,4 +417,4 @@ Your browser should now show a trusted certificate without security warnings.
 
 ## Congratulations
 
-You've successfully exposed BoltMCP to the public internet with TLS-secured ingress. Your cluster is now reachable at your configured hostnames with valid, auto-renewing certificates — nicely done.
+You've successfully exposed BoltMCP to the public internet with TLS-secured ingress. Your cluster is now reachable at your configured hostnames with valid, auto-renewing certificates.

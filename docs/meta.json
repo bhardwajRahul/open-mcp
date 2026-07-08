@@ -1,13 +1,14 @@
 {
   "pages": [
     "---Getting Started---",
-    "index",
-    "prerequisites",
-    "cluster-provisioning",
-    "cluster-preparation",
-    "deployment",
-    "ingress-tls",
-    "sign-in",
-    "uninstall"
+    "index.mdx",
+    "prerequisites.mdx",
+    "cluster-provisioning.mdx",
+    "cluster-preparation.mdx",
+    "deployment.mdx",
+    "vault-secret-store.mdx",
+    "ingress-tls.mdx",
+    "sign-in.mdx",
+    "uninstall.mdx"
   ]
 }

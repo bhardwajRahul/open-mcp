@@ -22,12 +22,14 @@ Ask the following questions in order. Use the ask question tool if available, ot
 ### 1. Where do you want to install BoltMCP?
 
 Multiple choice answers:
+
 - On a new Kubernetes cluster
 - On an existing Kubernetes cluster
 
 ### 2a. What tier of cluster do you want to create? (only ask this if they want to create a new cluster)
 
 Multiple choice answers:
+
 - Evaluation e.g. Trying BoltMCP, demos, throwaway dev clusters [default]
 - Production (minimum): Internal use, small teams, single-region
 - Production (scale): Customer-facing, room to scale replicas and run upgrades
@@ -39,6 +41,7 @@ Derive the multiple choice answers from the list of clusters above if present, a
 ### 3. Which is your preferred cloud provider?
 
 Multiple choice answers:
+
 - Google
 - AWS
 - Azure
@@ -98,6 +101,10 @@ Instead, tell the user to run them manually if required.
 **Communicating waiting time**
 
 Before running any commands which might take a while to run (e.g. 1 minute or more), warn the user with a rough time estimate.
+
+**Vault**
+
+Do not run the init/unseal/bootstrap commands yourself, just present them to the user to run manually while you continue with Ingress (get the info you need for Ingress before telling the user what vault commands to run).
 
 **Ingress**
 
