@@ -57,10 +57,10 @@ helm install boltmcp \
 ```
 
 <Callout type="warn">
-**`--timeout 15m` is required on EKS Auto Mode.** On a brand-new EKS Auto
-Mode cluster the `general-purpose` NodePool starts with zero nodes, and bringing
-up the first node can take longer than Helm's default 5m hook timeout. The default
-is generally sufficient for GKE/AKS deployments.
+`--timeout 15m` is required on EKS Auto Mode. On a brand-new EKS Auto
+Mode cluster the general-purpose NodePool starts with zero nodes, and bringing
+up the first node can take longer than Helm's default hook timeout. For GKE/AKS deployments the default `--timeout 5m`
+is generally sufficient.
 </Callout>
 
 

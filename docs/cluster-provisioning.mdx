@@ -13,14 +13,6 @@ BoltMCP runs on any conformant Kubernetes cluster (v1.28+). Pick the tier that m
 | **Production (minimum)** | 3 | 2 vCPU, 8 GiB RAM | Internal use, small teams, single-region |
 | **Production (recommended)** | 3 | 4 vCPU, 16 GiB RAM | Customer-facing, room to scale replicas and run upgrades |
 
-A few notes on how these numbers are derived:
-
-- **Why 3 nodes for production.** Rolling upgrades and node failures both take a node out of service. With 3 nodes, losing one during an upgrade still leaves a healthy majority, and pods on the failed node can reschedule onto the survivors. A 2-node cluster offers no margin.
-- **Why the per-node floor matters.** Each node loses ~1 vCPU and ~1.5 GiB to the kubelet, OS, and platform agents (CNI, DNS, logging, metrics) before any BoltMCP pod runs. Two small nodes are not equivalent to one larger node.
-- **Postgres.** The bundled Postgres is suitable for evaluation and small production deployments. For higher-traffic or compliance-sensitive workloads, point BoltMCP at a managed Postgres (Cloud SQL, RDS, Azure Database for PostgreSQL) and disable the bundled instance.
-- **Keycloak.** Defaults to a single replica. For HA, scale to ≥2 replicas with a shared cache and sticky sessions at the ingress.
-- **Ingress controller.** Not required at `helm install` time — pods will start and run without one. You'll install an ingress controller and configure TLS afterwards to expose the services externally (see the Ingress & TLS page).
-
 ## Create a Cluster
 
 <Callout type="info">

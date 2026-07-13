@@ -5,7 +5,7 @@ description: Expose BoltMCP publicly. Reference setup with NGINX Ingress Control
 
 The BoltMCP chart doesn't manage cluster ingress. It expects you to provision your own ingress / gateway / load balancer that terminates TLS and routes the BoltMCP hostnames to the in-cluster services.
 
-If your platform team handles ingress, hand them the hostnames table below and skip the rest of this page. The walkthrough that follows is a reference setup using NGINX Ingress Controller, cert-manager, and Let's Encrypt - adapt it for your environment, or replace it entirely with whatever ingress your cluster already runs.
+If your platform team handles ingress, hand them the hostnames table below and skip the rest of this page. The walkthrough that follows is a reference setup using NGINX Ingress Controller, cert-manager, and Let's Encryt. Adapt it for your environment, or replace it entirely with whatever ingress your cluster already runs.
 
 ## What BoltMCP needs from your ingress
 
@@ -102,7 +102,7 @@ ingress-nginx-controller   LoadBalancer   xx.x.xxx.xx   x.xxx.xxx.xxx   80:32695
 
 ### Reserve a Stable Address
 
-Give the load balancer a **stable address** so your DNS records stay valid across restarts. Whether you need to do anything here depends on your cloud:
+Give the load balancer a stable address so your DNS records stay valid across restarts. Whether you need to do anything here depends on your cloud:
 
 <Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
 <Tab value="GKE">
