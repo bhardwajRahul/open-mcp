@@ -29,7 +29,7 @@ kubectl create namespace boltmcp
 
 ## StorageClass
 
-BoltMCP's bundled PostgreSQL stores its data on a `PersistentVolumeClaim`. The cluster fulfils that claim by dynamically provisioning a volume through a StorageClass, so it must have an appropriate StorageClass available before you install the chart — otherwise the database PVC stays `Pending` and the install stalls.
+BoltMCP's bundled PostgreSQL stores its data on a PersistentVolumeClaim (PVC). The cluster fulfils that claim by dynamically provisioning a volume through a StorageClass, so it must have an appropriate StorageClass available before you install the chart — otherwise the database PVC stays `Pending` and the install stalls.
 
 List what the cluster already provides:
 
@@ -38,13 +38,6 @@ kubectl get storageclass
 ```
 
 Most managed clusters ship a suitable class out of the box: **GKE** and **AKS** both come with a usable default, so this command will list one and there is nothing more to do here.
-
-An **appropriate** StorageClass for BoltMCP is one that:
-
-- **provisions dynamically** — it has a real CSI provisioner (not `kubernetes.io/no-provisioner`), so it can create a volume on demand without a pre-existing `PersistentVolume`;
-- **supports `ReadWriteOnce`** — the database mounts the volume read-write on a single node. Block storage (AWS EBS, GCE PD, Azure Disk) is the right fit; avoid network-file classes (EFS, Filestore, Azure Files), whose semantics don't suit PostgreSQL.
-
-It is also worth having `allowVolumeExpansion: true` (so the volume can grow later) and `volumeBindingMode: WaitForFirstConsumer` (so the volume is provisioned in the same zone the database pod is scheduled to — important on multi-zone clusters), though neither is strictly required.
 
 If no appropriate StorageClass exists, create one. The common case is **EKS Auto Mode**: a fresh cluster comes with only a non-default `gp2` class backed by the deprecated in-tree provisioner, so add a CSI-backed `gp3` class instead:
 
@@ -65,7 +58,7 @@ kubectl apply -f ./config/storageclass-gp3.yaml
 ```
 
 <Callout type="info">
-The `ebs.csi.eks.amazonaws.com` provisioner is the one built into **EKS Auto Mode**. On a classic managed-node-group EKS cluster, install the [EBS CSI driver](https://github.com/kubernetes-sigs/aws-ebs-csi-driver) add-on instead and use its provisioner, `ebs.csi.aws.com`.
+The `ebs.csi.eks.amazonaws.com` provisioner is the one built into **EKS Auto Mode**. On a classic managed-node-group EKS cluster, install the EBS CSI driver add-on instead and use its provisioner, `ebs.csi.aws.com`.
 </Callout>
 
 ## Image Pull Secret
@@ -79,7 +72,9 @@ kubectl create secret docker-registry \
   --from-file=.dockerconfigjson=$HELM_REGISTRY_CONFIG
 ```
 
-The chart references this Secret by name via `global.imagePullSecrets`, which defaults to `boltmcp-pull-secret`. If you prefer a different Secret name, create it under that name here and override `global.imagePullSecrets` in your values file accordingly.
+<Callout>
+The chart references this secret by name via `global.imagePullSecrets`, default value `boltmcp-pull-secret`.
+</Callout>
 
 ## Application Secrets
 
@@ -90,11 +85,9 @@ The Secret names are derived from the Helm release name as:
 - `<release>-oidc`
 - `<release>-auth`
 
-Here we assume the default release name `boltmcp`:
+Assuming the default release name `boltmcp`, the secret names and their required keys are as follows:
 
-### Required keys
-
-**`boltmcp-database`**
+### `boltmcp-database`
 
 | Key | Used for |
 |---|---|
@@ -102,11 +95,11 @@ Here we assume the default release name `boltmcp`:
 | `migrate-core-password` | DB password for the migration role |
 | `web-password` | DB password for the BoltMCP web app |
 | `rest-api-password` | DB password for the REST API |
-| `mcp-server-password` | DB password for the MCP server |
+| `mcp-server-password` | DB password for the MCP servers |
 | `keycloak-password` | DB password for Keycloak |
-| `vault-password` | DB password for Vault's storage backend (required when `vault.enabled=true`, the default) |
+| `vault-password` | DB password for Vault's storage |
 
-**`boltmcp-oidc`**
+### `boltmcp-oidc`
 
 | Key | Used for |
 |---|---|
@@ -118,7 +111,7 @@ Here we assume the default release name `boltmcp`:
     Other OIDC clients created by BoltMCP are either public or have their passwords automatically set by Keycloak.
 </Callout>
 
-**`boltmcp-auth`**
+### `boltmcp-auth`
 
 | Key | Used for |
 |---|---|
@@ -127,7 +120,7 @@ Here we assume the default release name `boltmcp`:
 | `boltmcp-admin-password` | Password for the first user in the BoltMCP Keycloak realm |
 | `mcp-inspector-proxy-auth-token` | Proxy auth token |
 
-### Manual with `kubectl` (simplest)
+### Create secrets manually
 
 Generate random values inline and create all three Secrets in one shot. This is the fastest path for evaluation installs and any environment where you don't already have a secrets manager. Update `RELEASE` below if you plan to install the chart with a custom release name.
 
@@ -163,6 +156,6 @@ kubectl get secret boltmcp-auth -n boltmcp \
   -o jsonpath='{.data.boltmcp-admin-password}' | base64 -d; echo
 ```
 
-### Alternatives
+### Alternatives for populating secrets
 
 The manual approach above is the simplest path, but if you already run a secrets-management workflow you can populate the same three Secrets from it instead. With the *External Secrets Operator* you sync the values from HashiCorp Vault or a cloud secrets manager (AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, 1Password) into Kubernetes Secrets; with *Sealed Secrets* or *SOPS* you keep the encrypted source material in Git and let an in-cluster controller (or your GitOps tool) materialise the plain Secrets.
