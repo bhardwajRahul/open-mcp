@@ -1,0 +1,15 @@
+---
+title: Security Hardening
+description: Recommended hardening steps for a public BoltMCP deployment.
+---
+
+With public access enabled, consider:
+
+- **Rate limiting** via ingress annotations:
+  ```yaml
+  nginx.ingress.kubernetes.io/limit-rps: "10"
+  nginx.ingress.kubernetes.io/limit-connections: "5"
+  ```
+- **Brute force protection** in Keycloak: Realm Settings > Security Defenses > Enable Brute Force Detection
+- **DDoS protection** via your cloud provider's WAF/shield service
+- **Monitoring** with uptime checks on public endpoints

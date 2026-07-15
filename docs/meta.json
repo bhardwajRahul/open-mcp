@@ -9,6 +9,17 @@
     "vault-secret-store.mdx",
     "ingress-tls.mdx",
     "sign-in.mdx",
-    "uninstall.mdx"
+    "---Maintenance---",
+    "upgrading.mdx",
+    "uninstall.mdx",
+    "---Reference---",
+    "architecture.mdx",
+    "configuration-reference.mdx",
+    "troubleshooting.mdx",
+    "---For Production---",
+    "security-hardening.mdx",
+    "vault-auto-unseal.mdx",
+    "external-secrets-operator.mdx",
+    "sealed-secrets-and-sops.mdx"
   ]
 }

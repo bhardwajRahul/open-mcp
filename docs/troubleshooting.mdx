@@ -1,0 +1,231 @@
+---
+title: Troubleshooting
+description: Common issues and diagnostic commands.
+---
+
+## Pods Stuck in Pending
+
+The cluster may lack sufficient resources.
+
+```bash
+kubectl describe pod -n boltmcp <pod-name>
+```
+
+Look for events mentioning insufficient CPU or memory. Either scale the cluster or set resource requests in your values file.
+
+## CreateContainerConfigError / Missing Secret
+
+The chart never creates the three application Secrets — pods fail with `CreateContainerConfigError: secret "boltmcp-database" not found` (or `-oidc` / `-auth`) until you create them. List what's actually present:
+
+```bash
+kubectl get secrets -n boltmcp
+```
+
+If any of `boltmcp-database`, `boltmcp-oidc`, `boltmcp-auth` is missing, create it per [Cluster Prep → Application Secrets](./cluster-preparation#application-secrets). Pods recover automatically on the next restart loop once the Secret exists.
+
+## CrashLoopBackOff
+
+The application is crashing on startup. Check logs:
+
+```bash
+kubectl logs -n boltmcp <pod-name>
+```
+
+Common causes:
+- **Wrong database password** — the password baked into PostgreSQL on first startup must match the `migrate-core-password` / `web-password` / `rest-api-password` / `mcp-server-password` / `keycloak-password` / `vault-password` in your `boltmcp-database` Secret. If you rotated a value in the Secret without resetting the corresponding DB user via `ALTER USER ... PASSWORD ...`, they'll diverge. Reset the password in the database or roll back the Secret value.
+- **Missing key in a Secret** — if the chart references a key that doesn't exist in the user-managed Secret (e.g. `mcp-inspector-proxy-auth-token` while `mcpInspector.enabled=true`), pods fail to start. `kubectl describe pod` shows the missing key. Edit the Secret to add the key, then `kubectl rollout restart deployment/<service>`.
+- **Database not ready** — the init container should wait, but verify the database pod is healthy.
+
+## ErrImagePull / ImagePullBackOff
+
+Kubernetes cannot pull the container images.
+
+```bash
+kubectl describe pod -n boltmcp <pod-name>
+```
+
+Verify the image pull secret exists:
+
+```bash
+kubectl get secrets -n boltmcp | grep boltmcp-pull-secret
+```
+
+If missing, recreate it:
+
+```bash
+kubectl create secret docker-registry boltmcp-pull-secret \
+  -n boltmcp \
+  --docker-server=europe-west2-docker.pkg.dev \
+  --docker-username=_json_key \
+  --docker-password="$(cat ./key.json)"
+```
+
+The chart's default `global.imagePullSecrets` is `[{ name: boltmcp-pull-secret }]`, so as long as the Secret exists under that name in the install namespace it will be picked up on the next pod restart (a `helm upgrade` is only required if you used a non-default Secret name and need to override the value).
+
+## Connection Refused
+
+- **Pod not ready** — check pod status with `kubectl get pods -n boltmcp`
+- **Service not found** — verify services exist with `kubectl get svc -n boltmcp`
+- **Ingress or DNS misconfigured** — bypass them with port-forwarding (see below) to confirm the pod itself is healthy
+
+## Bypass Ingress with Port-Forwarding
+
+If the Ingress, DNS, or TLS layer is misbehaving, port-forward directly to a service to confirm the pod is responding. This is a diagnostic tool, not a normal access path.
+
+```bash
+# Web app
+kubectl port-forward -n boltmcp svc/boltmcp-web 3000:3000
+
+# Keycloak
+kubectl port-forward -n boltmcp svc/boltmcp-keycloak 8080:8080
+
+# MCP Server
+kubectl port-forward -n boltmcp svc/boltmcp-mcp-server 3001:3001
+```
+
+Note: OIDC redirects will fail when accessed via `localhost`, since the issuer URL in the values file points at your public Keycloak hostname. Port-forwarding is useful for verifying a single service is up, not for an end-to-end auth flow.
+
+Keycloak's admin UI is a special case: with `keycloak.production.enabled: true` (the default), `KC_HOSTNAME` is enforced, so the admin console will load briefly via `localhost:8080` and then redirect you to `https://auth.boltmcp.example.com`. Use the public Keycloak URL for admin work; port-forwarding to Keycloak is only useful for hitting `/health/ready` to confirm the pod is up.
+
+## Authentication Not Working
+
+### Issuer URL Mismatch
+
+The OIDC issuer URL must be identical in the browser and in the application pods:
+
+```bash
+kubectl describe pod <web-pod> -n boltmcp | grep OIDC
+```
+
+Ensure the issuer URL matches the Keycloak hostname exactly (protocol, host, port, path).
+
+### Missing Email or Name
+
+BoltMCP requires users to have an **email** and **first name** to sign in. The auto-provisioned `boltmcp_admin` user gets both fields set at realm-import time (email from `oidc.adminUser.email`, firstName `Admin`). If you add more users later through the Keycloak admin console, make sure each has both fields populated before they try to sign into the BoltMCP web app.
+
+### Client Secret Mismatch
+
+The OIDC client secrets in the `boltmcp-oidc` Secret must match what's configured on the corresponding clients in Keycloak. There are five client secrets: `web-client-secret`, `mcp-server-client-secret`, `mcp-client-client-secret`, `mcp-server-to-rest-api-client-secret`, and `rest-api-resource-server-client-secret`. To rotate a value:
+
+1. Edit the `boltmcp-oidc` Secret (`kubectl edit secret boltmcp-oidc -n boltmcp`, or re-apply via your secrets manager) so the new value is base64-encoded under the right key.
+2. Update the same value on the matching client in the Keycloak admin console.
+3. Restart deployments so they pick up the new value (Kubernetes does not auto-restart pods on Secret changes):
+
+```bash
+kubectl rollout restart -n boltmcp deployment/boltmcp-web
+kubectl rollout restart -n boltmcp deployment/boltmcp-mcp-server
+kubectl rollout restart -n boltmcp deployment/boltmcp-rest-api
+```
+
+<Callout type="warn">
+Rotating `mcp-server-to-rest-api-client-secret` or `rest-api-resource-server-client-secret` also requires restarting Keycloak. Those values are interpolated into the realm JSON at `--import-realm` time from environment variables on the Keycloak Pod, so Keycloak holds the old secret in memory until it restarts — without a restart you will see introspection failures (401) persist after the rotation.
+
+```bash
+kubectl rollout restart -n boltmcp deployment/boltmcp-keycloak
+```
+</Callout>
+
+### Redirect Loop
+
+Check that client redirect URIs in Keycloak match the web URLs. The redirect URI must include the full path pattern (e.g. `https://web.boltmcp.example.com/*`).
+
+## Vault Secret Endpoints Failing (502 / 503)
+
+The REST API's secret endpoints (`/api/v1/secrets/*`) depend on the bundled Vault being initialized, unsealed, and bootstrapped. The HTTP status tells you which step is missing:
+
+- **503 (Vault not configured)** — `vault.kubernetesAuth.enabled` is off, or the bootstrap hasn't created the auth method/role yet. Run the [Vault bootstrap](./vault-secret-store).
+- **502 (Vault unavailable)** — Vault is **sealed** or unreachable, or the Kubernetes login was rejected. Check the seal state and unseal if needed:
+
+  ```bash
+  kubectl exec -it -n boltmcp deploy/boltmcp-vault -- vault status
+  ```
+
+  Remember that with the default (Shamir) seal, **every Vault pod restart re-seals it** — re-run `vault operator unseal`, or configure [auto-unseal](./vault-secret-store).
+
+If login is rejected even when Vault is unsealed and bootstrapped, the most common causes are a projected-token **audience** that doesn't match the Vault role's `audience`, or the Vault ServiceAccount lacking the `system:auth-delegator` binding (it can't run `TokenReview`). Both are wired by the chart, so check that `vault.kubernetesAuth.audience` was not overridden inconsistently and inspect the REST API logs:
+
+```bash
+kubectl logs -n boltmcp deploy/boltmcp-rest-api | grep -i vault
+```
+
+## Certificate Issues
+
+### Certificate Stuck in False State
+
+```bash
+kubectl describe certificate boltmcp-tls -n boltmcp
+kubectl get challenges -n boltmcp
+```
+
+Common causes:
+- **DNS not propagated** — verify with `nslookup web.boltmcp.example.com`
+- **HTTP-01 challenge failed** — ensure NGINX ingress is running and accessible
+- **Rate limited** — use the staging ClusterIssuer for testing
+
+### Large Header Errors
+
+If Keycloak produces "upstream sent too big header" errors, increase the buffer:
+
+```yaml
+annotations:
+  nginx.ingress.kubernetes.io/proxy-buffer-size: "256k"
+```
+
+## Database lost+found Error
+
+If the database pod logs show:
+
+```
+initdb: error: directory "/var/lib/postgresql/data" exists but is not empty
+initdb: detail: It contains a lost+found directory
+```
+
+The PVC must be recreated:
+
+```bash
+helm uninstall boltmcp -n boltmcp
+kubectl delete pvc data-boltmcp-database-0 -n boltmcp
+
+helm install boltmcp \
+  oci://europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/charts/boltmcp \
+  --version ${BOLTMCP_VERSION} \
+  -n boltmcp \
+  -f ./config/values-prod.yaml
+```
+
+## Diagnostic Commands
+
+```bash
+# Pod status
+kubectl get pods -n boltmcp
+
+# Pod logs
+kubectl logs -n boltmcp <pod-name>
+
+# Pod events and details
+kubectl describe pod -n boltmcp <pod-name>
+
+# Services and endpoints
+kubectl get svc -n boltmcp
+kubectl get endpoints -n boltmcp
+
+# Secrets
+kubectl get secrets -n boltmcp
+
+# Helm release status
+helm list -n boltmcp
+helm status boltmcp -n boltmcp
+
+# Certificate status (if using Ingress)
+kubectl get certificates -n boltmcp
+kubectl get challenges -n boltmcp
+
+# Ingress status
+kubectl get ingress -n boltmcp
+
+# NGINX Ingress logs
+kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx
+```
+
+
+Any helm commands require having set shell variable `HELM_REGISTRY_CONFIG` to point to your boltmcp key.

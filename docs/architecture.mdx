@@ -1,0 +1,66 @@
+---
+title: Architecture
+description: ...
+---
+
+BoltMCP is a platform for creating and managing custom Model Context Protocol (MCP) servers. A single Helm chart deploys the full stack - application services and optional database and identity provider - into a single Kubernetes namespace.
+
+## Architecture
+
+```mermaid
+graph LR
+  web[BoltMCP Web]
+  api[BoltMCP REST API]
+  gold[BoltMCP Gold Image<br/>MCP Server]
+
+  database[(PostgreSQL)]
+  idp["Identity Provider<br/>(Okta,Entra,Ping,Keycloak)"]
+  cache["Cache<br/>(Redis,Valkey)"]
+  vault["Secrets Manager<br/>(Vault)"]
+  policy["Policy-as-Code<br/>(OPA)"]
+  observability["OpenTelemetry<br/>(Datadog,Splunk,Grafana)"]
+  gateway[Optional Gateway]
+  agents[Claude, ChatGPT, Agents]
+  apis["Internal & SaaS APIs<br/>(REST,gRPC)"]
+  apihub["API Hub<br/>(Apigee,Backstage,Kong)"]
+  static["Company Docs<br/>(Web,Skills,Sharepoint)"]
+  inspector["MCP Inspector"]
+
+  idp --- web
+  web --- api
+  idp --- api
+  database --- api
+  api --- apihub
+  api --- static
+  api --- vault
+  api --- observability
+  database --- gold
+  idp --- gold
+  gold --- cache
+  gold --- vault
+  gold --- policy
+  gold --- observability
+  gold --- apis
+  agents --- gateway --- gold
+  inspector --- gold
+
+  classDef default stroke-width:2px
+  linkStyle default stroke-width:2px,opacity:0.6
+  style web stroke:#e6a00c,stroke-width:2px
+  style api stroke:#e6a00c,stroke-width:2px
+  style gold stroke:#e6a00c,stroke-width:2px
+  style gateway stroke-dasharray:5 5
+```
+
+## Database Isolation
+
+Each BoltMCP service connects as its own PostgreSQL login role scoped to a `boltmcp_*` schema:
+
+| Service | Login role | Schema | Access |
+|---------|-----------|--------|--------|
+| Web | `boltmcp_web` | `boltmcp_core` | Read/write |
+| REST API | `boltmcp_rest_api` | `boltmcp_core` | Read/write |
+| MCP Servers | `boltmcp_mcp_server` | `boltmcp_core` | Read-only |
+| Migrations | `boltmcp_migrate_core` | `boltmcp_core` | Owner with full privileges |
+| Keycloak | `boltmcp_keycloak` | `boltmcp_keycloak` | Owner with full privileges |
+| Vault | `boltmcp_vault` | `boltmcp_vault` | Owner with full privileges |

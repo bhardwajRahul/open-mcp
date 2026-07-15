@@ -1,0 +1,36 @@
+---
+title: Vault Auto-unseal
+description: ...
+---
+
+## Auto-unseal (production)
+
+`vault.seal` makes the seal method pluggable. The default (`type: ""`) is Shamir / manual unseal — no external dependency, installable on any cluster, but it re-seals on every restart. Set `vault.seal.type` to a cloud KMS (`awskms`, `gcpckms`, `azurekeyvault`) or `transit` to auto-unseal on every pod start:
+
+```yaml title="config/values-prod.yaml"
+vault:
+  seal:
+    type: awskms
+    config:
+      region: us-east-1
+      kms_key_id: "<your-kms-key-id>"
+    # Credentials for the seal, injected as Vault container env (often a
+    # secretKeyRef). On AWS you can instead use IRSA and omit these.
+    extraEnv:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: boltmcp-vault-seal
+            key: aws-access-key-id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: boltmcp-vault-seal
+            key: aws-secret-access-key
+```
+
+<Callout type="info">
+Auto-unseal removes the *repeated* unseal-after-restart toil, but **not** the
+one-time `vault operator init` — a fresh Vault still needs initializing once
+(with auto-unseal, `init` emits *recovery* keys plus the initial root token).
+</Callout>
