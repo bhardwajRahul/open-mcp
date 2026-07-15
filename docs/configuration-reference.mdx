@@ -1,0 +1,197 @@
+---
+title: Configuration Reference
+description: Complete reference for all configurable values of the BoltMCP Helm chart.
+---
+
+{/* AUTO-GENERATED from charts/boltmcp/values.schema.json — do not edit. Run: pnpm --filter boltmcp-docs-install generate */}
+
+## database
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `database.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
+| `database.coreSchema` | string | `"boltmcp_core"` | Schema holding the shared application tables. The ltree extension is namespaced here and the schema is owned by the migrate-core user; application roles have no dependency on public. |
+| `database.host` | string | `""` | External database host (when internal.enabled=false) |
+| `database.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
+| `database.image.repository` | string | `"postgres"` | PostgreSQL image repository |
+| `database.image.tag` | string | `"15-alpine"` | PostgreSQL image tag |
+| `database.internal.enabled` | bool | `true` | Deploy internal PostgreSQL. Set false for external DB |
+| `database.name` | string | `"boltmcp"` | Database name |
+| `database.nodeSelector` | object | `{}` | Node selector |
+| `database.persistence.accessModes` | array | `["ReadWriteOnce"]` | PVC access modes |
+| `database.persistence.enabled` | bool | `true` | Enable persistent storage |
+| `database.persistence.size` | string | `"10Gi"` | PVC size |
+| `database.persistence.storageClass` | string | `""` | Storage class (falls back to global.storageClass) |
+| `database.port` | int | `5432` | Database port |
+| `database.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
+| `database.superuser.username` | string | `"postgres"` | Superuser username (password lives in the database Secret as superuser-password) |
+| `database.tolerations` | array | `[]` | Tolerations |
+| `database.users.keycloak.schema` | string | `"boltmcp_keycloak"` | Keycloak schema name |
+| `database.users.keycloak.username` | string | `"boltmcp_keycloak"` | Keycloak DB user (password: keycloak-password) |
+| `database.users.mcpServer.username` | string | `"boltmcp_mcp_server"` | MCP Server DB user, read-only on the core schema (password: mcp-server-password) |
+| `database.users.migrateCore.username` | string | `"boltmcp_migrate_core"` | Migration DB user — owns the core schema and is the only role that runs DDL/migrations (password: migrate-core-password) |
+| `database.users.restApi.username` | string | `"boltmcp_rest_api"` | REST API DB user, read/write on the core schema (password: rest-api-password) |
+| `database.users.vault.schema` | string | `"boltmcp_vault"` | Vault storage schema name |
+| `database.users.vault.username` | string | `"boltmcp_vault"` | Vault storage DB user; owns the pre-created vault_kv_store table (password: vault-password) |
+| `database.users.web.username` | string | `"boltmcp_web"` | Web app DB user, read/write on the core schema (password lives in the database Secret as web-password) |
+
+## global
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `global.domain` | string | `""` | Apex domain that hosts BoltMCP. Used to derive per-service hostnames as `web.<domain>`, `auth.<domain>`, `server.<domain>`, `inspector.<domain>`. Required unless every per-service URL/hostname override is set explicitly. |
+| `global.imagePullSecrets` | array | `[{"name":"boltmcp-pull-secret"}]` | Image pull secrets for private registries. Matches the Secret name created in cluster prep. Set to [] if your images come from a registry that doesn't require auth. |
+| `global.imageRegistry` | string | `"europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/images"` | Default image registry for BoltMCP images |
+| `global.storageClass` | string | `""` | Storage class for all BoltMCP persistent volumes. Empty uses the cluster default (fine on GKE/AKS). On EKS set it to a class you created. Overridable per-volume by database.persistence.storageClass. |
+
+## keycloak
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `keycloak.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
+| `keycloak.enabled` | bool | `true` | Enable Keycloak deployment |
+| `keycloak.hostname` | string | `""` | Explicit hostname. If empty, defaults to `auth.<global.domain>` |
+| `keycloak.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
+| `keycloak.image.repository` | string | `"quay.io/keycloak/keycloak"` | Keycloak image |
+| `keycloak.image.tag` | string | `"26.6.4-1"` | Keycloak image tag |
+| `keycloak.nodeSelector` | object | `{}` | Node selector |
+| `keycloak.production.enabled` | bool | `true` | Run in production mode (start vs start-dev). Set false only for evaluation installs without an Ingress / TLS-terminating proxy |
+| `keycloak.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
+| `keycloak.service.healthPort` | int | `9000` | Health check port |
+| `keycloak.service.port` | int | `8080` | Service port |
+| `keycloak.service.type` | string | `"ClusterIP"` | Service type |
+| `keycloak.tolerations` | array | `[]` | Tolerations |
+
+## mcpInspector
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mcpInspector.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
+| `mcpInspector.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://inspector.<global.domain>` |
+| `mcpInspector.enabled` | bool | `true` | Enable MCP Inspector |
+| `mcpInspector.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
+| `mcpInspector.image.repository` | string | `"ghcr.io/modelcontextprotocol/inspector"` | Image repository |
+| `mcpInspector.image.tag` | string | `"0.21.1"` | Image tag |
+| `mcpInspector.nodeSelector` | object | `{}` | Node selector |
+| `mcpInspector.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
+| `mcpInspector.service.proxyPort` | int | `6277` | Proxy port |
+| `mcpInspector.service.type` | string | `"ClusterIP"` | Service type |
+| `mcpInspector.service.webPort` | int | `6274` | Web UI port |
+| `mcpInspector.tolerations` | array | `[]` | Tolerations |
+
+## mcpServer
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mcpServer.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
+| `mcpServer.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://server.<global.domain>` |
+| `mcpServer.extraEnv` | array | `[]` | Additional environment variables |
+| `mcpServer.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
+| `mcpServer.image.repository` | string | `""` | Image repository (defaults to global.imageRegistry/boltmcp-mcp-server) |
+| `mcpServer.image.tag` | string | `""` | Image tag (defaults to .Chart.AppVersion if empty) |
+| `mcpServer.nodeSelector` | object | `{}` | Node selector |
+| `mcpServer.replicaCount` | int | `1` | Number of replicas |
+| `mcpServer.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
+| `mcpServer.service.port` | int | `3001` | Service port |
+| `mcpServer.service.type` | string | `"ClusterIP"` | Service type |
+| `mcpServer.tolerations` | array | `[]` | Tolerations |
+
+## migrations
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `migrations.backoffLimit` | int | `3` | Job retry limit |
+| `migrations.coreMigrateImage.repository` | string | `""` | Core schema migration image (defaults to global.imageRegistry/boltmcp-migrate-core) |
+| `migrations.coreMigrateImage.tag` | string | `""` | Tag (inherits from web.image.tag) |
+| `migrations.ttlSecondsAfterFinished` | int | `300` | Cleanup delay after job completion |
+
+## oidc
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `oidc.adminUser.email` | string | `""` | Required. Email for the first user in the boltmcp Keycloak realm. Provisioned on first install via --import-realm (username boltmcp_admin, firstName Admin, emailVerified true, granted realm-management/realm-admin). Password lives in the auth Secret as boltmcp-admin-password. |
+| `oidc.issuerUrl` | string | `""` | OIDC issuer URL. If empty, defaults to `https://<keycloak.hostname>/realms/boltmcp` |
+| `oidc.mcpServer.clientId` | string | `"boltmcp-mcp-server"` | MCP Server client ID (secret: mcp-server-client-secret) |
+| `oidc.mcpServerToRestApi.clientId` | string | `"boltmcp-mcp-server-to-rest-api"` | Client used by the MCP server to obtain user tokens for the REST API (secret: mcp-server-to-rest-api-client-secret). PKCE-aware, audience-mapped to REST_API_BASE_URL. |
+| `oidc.provider` | string | `"keycloak"` | OIDC provider type |
+| `oidc.restApiResourceServer.clientId` | string | `"boltmcp-rest-api"` | Client used by the REST API to authenticate to Keycloak's introspection endpoint (secret: rest-api-resource-server-client-secret). |
+| `oidc.web.clientId` | string | `"boltmcp-web"` | Platform client ID (secret lives in the OIDC Secret as web-client-secret) |
+
+## restApi
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `restApi.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
+| `restApi.extraEnv` | array | `[]` | Additional environment variables |
+| `restApi.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
+| `restApi.image.repository` | string | `""` | Image repository (defaults to global.imageRegistry/boltmcp-rest-api) |
+| `restApi.image.tag` | string | `""` | Image tag (defaults to .Chart.AppVersion if empty) |
+| `restApi.nodeSelector` | object | `{}` | Node selector |
+| `restApi.replicaCount` | int | `1` | Number of replicas |
+| `restApi.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
+| `restApi.service.port` | int | `3003` | Service port |
+| `restApi.service.type` | string | `"ClusterIP"` | Service type |
+| `restApi.tolerations` | array | `[]` | Tolerations |
+
+## secrets
+
+Names of user-managed Kubernetes Secrets the chart reads. The chart never creates these.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `secrets.auth.name` | string | `""` | Name of the user-managed Secret holding auth tokens, the master-realm Keycloak admin password (keycloak-admin-password), the BoltMCP-realm first-user password (boltmcp-admin-password), and the MCP Inspector token. If empty, defaults to `<release>-auth`. |
+| `secrets.database.name` | string | `""` | Name of the user-managed Secret holding database passwords. If empty, defaults to `<release>-database`. |
+| `secrets.oidc.name` | string | `""` | Name of the user-managed Secret holding OIDC client secrets. If empty, defaults to `<release>-oidc`. |
+
+## vault
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `vault.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
+| `vault.enabled` | bool | `true` | Deploy the bundled Vault |
+| `vault.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
+| `vault.image.repository` | string | `"hashicorp/vault"` | Image repository |
+| `vault.image.tag` | string | `"1.21.4"` | Image tag |
+| `vault.kubernetesAuth.audience` | string | `"vault"` | Projected-token audience (must match the Vault role) |
+| `vault.kubernetesAuth.authMountPath` | string | `"kubernetes"` | Mount path of Vault's Kubernetes auth method |
+| `vault.kubernetesAuth.enabled` | bool | `true` | Wire boltmcp-rest-api to Vault via Kubernetes auth (ServiceAccount + projected token + env) |
+| `vault.kubernetesAuth.kvMount` | string | `"secret"` | KV v2 secrets engine mount |
+| `vault.kubernetesAuth.kvPathPrefix` | string | `"boltmcp/server-env-api-cred"` | Logical prefix the REST API stores secrets under |
+| `vault.kubernetesAuth.mcpServer.policy` | string | `"boltmcp-mcp-server"` | Vault policy for the MCP Server's read-only access to the secret prefix |
+| `vault.kubernetesAuth.mcpServer.role` | string | `"boltmcp-mcp-server"` | Vault role bound to the MCP Server ServiceAccount (the reader; shares the auth mount, KV mount/prefix, and audience) |
+| `vault.kubernetesAuth.policy` | string | `"boltmcp-rest-api"` | Vault policy for the secret prefix |
+| `vault.kubernetesAuth.role` | string | `"boltmcp-rest-api"` | Vault role bound to the REST API ServiceAccount |
+| `vault.nodeSelector` | object | `{}` | Node selector |
+| `vault.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
+| `vault.seal.config` | object | `{}` | Key/value pairs rendered into the seal stanza (e.g. region, kms_key_id) |
+| `vault.seal.extraEnv` | array | `[]` | Extra Vault container env for the seal (e.g. KMS credentials) |
+| `vault.seal.type` | string | `""` | Seal type — "" is Shamir/manual unseal; awskms/gcpckms/azurekeyvault/transit enable auto-unseal |
+| `vault.service.port` | int | `8200` | Service port |
+| `vault.service.type` | string | `"ClusterIP"` | Service type |
+| `vault.tolerations` | array | `[]` | Tolerations |
+
+## web
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `web.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
+| `web.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://web.<global.domain>` |
+| `web.extraEnv` | array | `[]` | Additional environment variables |
+| `web.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
+| `web.image.repository` | string | `""` | Image repository (defaults to global.imageRegistry/boltmcp-web) |
+| `web.image.tag` | string | `""` | Image tag (defaults to .Chart.AppVersion if empty) |
+| `web.nodeSelector` | object | `{}` | Node selector |
+| `web.replicaCount` | int | `1` | Number of replicas |
+| `web.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
+| `web.service.port` | int | `3000` | Service port |
+| `web.service.type` | string | `"ClusterIP"` | Service type |
+| `web.tolerations` | array | `[]` | Tolerations |
+
+## Other values
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fullnameOverride` | string | `""` | Override the full release name |
+| `nameOverride` | string | `""` | Override the release name |
+| `podAnnotations` | object | `{}` | Pod annotations |
+| `podSecurityContext` | object | `{}` | Pod security context |
