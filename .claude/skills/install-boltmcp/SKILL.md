@@ -122,7 +122,7 @@ Do not use `kubectl get ... -w` — it produces a streaming watch that never ter
 until [ "$(kubectl get certificate boltmcp-tls -n boltmcp -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" = "True" ]; do sleep 10; done
 ```
 
-Always wait for readiness before proceeding to a step that depends on the resource (e.g. wait for a `ClusterIssuer` to be `Ready=True` before applying the ingress that references it). Do not substitute `sleep N` for a real readiness check.
+Always wait for readiness before proceeding to a step that depends on the resource (e.g. wait for a `ClusterIssuer` to be `Ready=True` before running the `helm upgrade` that enables the chart-managed Ingress referencing it). Do not substitute `sleep N` for a real readiness check.
 
 **Getting account credentials**
 

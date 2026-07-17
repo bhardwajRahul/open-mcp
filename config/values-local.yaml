@@ -1,0 +1,14 @@
+global:
+  # Domain your HTTP ingress serves, e.g. an /etc/hosts entry pointing
+  # web.<domain>, auth.<domain>, server.<domain> and inspector.<domain>
+  # at your ingress controller.
+  domain: "boltmcp.local"
+
+  # Advertise http:// URLs everywhere.
+  tls:
+    enabled: false
+
+oidc:
+  adminUser:
+    # Email for the first admin user (must be a real email address).
+    email: "admin@example.com"

@@ -99,6 +99,28 @@ kubectl describe pod <web-pod> -n boltmcp | grep OIDC
 
 Ensure the issuer URL matches the Keycloak hostname exactly (protocol, host, port, path).
 
+On plain-HTTP installs, set `global.tls.enabled: false` rather than overriding URLs one by one — a lone `https://` issuer (the default when only the base URLs are overridden to `http://`) silently breaks token validation.
+
+### Public hostnames don't resolve inside the cluster (split-horizon DNS)
+
+**Symptoms:** the browser reaches BoltMCP fine, but the web, rest-api, or seed pods fail with OIDC discovery errors against `auth.<domain>` — `ENOTFOUND`, connection timeouts, or `ECONNREFUSED 127.0.0.1` (a workstation-only `/etc/hosts` entry leaking into cluster DNS and resolving to the pod's own loopback).
+
+**Cause:** the services fetch the OIDC discovery document from the *public* issuer URL server-side. If the public hostnames only resolve outside the cluster (local installs, split-horizon corporate DNS), those in-cluster requests fail even though everything works in the browser.
+
+**Fix:** set `global.hostAliases` so every BoltMCP pod resolves the public hostnames to your ingress:
+
+```yaml
+global:
+  hostAliases:
+    - ip: "<ingress IP reachable from inside the cluster>"
+      hostnames:
+        - auth.boltmcp.example.com
+        - web.boltmcp.example.com
+        - server.boltmcp.example.com
+```
+
+Then `helm upgrade` with the updated values. No CoreDNS changes are needed.
+
 ### Missing Email or Name
 
 BoltMCP requires users to have an **email** and **first name** to sign in. The auto-provisioned `boltmcp_admin` user gets both fields set at realm-import time (email from `oidc.adminUser.email`, firstName `Admin`). If you add more users later through the Keycloak admin console, make sure each has both fields populated before they try to sign into the BoltMCP web app.
