@@ -58,8 +58,8 @@ If other services in your cluster share the same NGINX Ingress Controller or cer
 </Callout>
 
 ```bash
-# Ingress and TLS secret (names come from boltmcp-ingress.yaml — adjust if you renamed them)
-kubectl delete ingress boltmcp-ingress -n ${NAMESPACE}
+# TLS secret (the chart-managed Ingress itself is already removed with the
+# release; if you created your own Ingress resource instead, delete it too)
 kubectl delete secret boltmcp-tls -n ${NAMESPACE}
 
 # Certificate (may return NotFound if already cleaned up by cert-manager)
@@ -220,7 +220,7 @@ kubectl config use-context <other-context-name>
 
 ### Local YAML manifests
 
-Remove any files you created locally during install — for example `values-prod.yaml`, `storageclass-gp3.yaml` (EKS), `cluster-issuer-staging.yaml`, `cluster-issuer-production.yaml`, and `boltmcp-ingress.yaml` — from the directory where you ran the install.
+Remove any files you created locally during install — for example `values-prod.yaml`, `storageclass-gp3.yaml` (EKS), `cluster-issuer-staging.yaml`, and `cluster-issuer-production.yaml` — from the directory where you ran the install.
 
 ### Helm registry credentials
 

@@ -3,9 +3,13 @@ title: Deployment
 description: Configure your values file, install the Helm chart, and verify the running services.
 ---
 
-## Values File Template
+## Values File Templates
 
-Create a `values-prod.yaml` file and update the values accordingly:
+Create a values yaml file and update the values accordingly.
+
+### Remote HTTPS
+
+Use this template if your deployment will sit behind a real domain with TLS enabled.
 
 ```yaml title="config/values-prod.yaml" extract="true"
 global:
@@ -14,10 +18,39 @@ global:
   # Recommended: choose the `boltmcp` subdomain of your company's domain.
   domain: "boltmcp.example.com"
 
+  # Advertise https:// URLs everywhere.
+  tls:
+    enabled: true
+    
   # Storage class for the bundled database's persistent volume. Leave unset
   # to use the cluster default (GKE/AKS ship one). On EKS, set this to the
   # class you created in Cluster Prep.
   # storageClass: gp3
+
+oidc:
+  adminUser:
+    # Email for the first admin user (must be a real email address).
+    email: "admin@example.com"
+```
+
+<Callout>
+    Note that setting `global.tls.enabled: true` does not provision TLS itself.
+</Callout>
+
+### Local HTTP
+
+Use this template if you're deploying locally e.g. Docker Desktop Kubernetes.
+
+```yaml title="config/values-local.yaml" extract="true"
+global:
+  # Domain your HTTP ingress serves, e.g. an /etc/hosts entry pointing
+  # web.<domain>, auth.<domain>, server.<domain> and inspector.<domain>
+  # at your ingress controller.
+  domain: "boltmcp.local"
+
+  # Advertise http:// URLs everywhere.
+  tls:
+    enabled: false
 
 oidc:
   adminUser:
@@ -30,7 +63,7 @@ oidc:
 Set a version once and reference it in subsequent commands. Use the latest release version you've been provided:
 
 ```bash
-export BOLTMCP_VERSION=0.1.4
+export BOLTMCP_VERSION=0.2.0
 ```
 
 ## Install the Chart

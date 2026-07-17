@@ -4,6 +4,10 @@ global:
   # Recommended: choose the `boltmcp` subdomain of your company's domain.
   domain: "boltmcp.example.com"
 
+  # Advertise https:// URLs everywhere.
+  tls:
+    enabled: true
+    
   # Storage class for the bundled database's persistent volume. Leave unset
   # to use the cluster default (GKE/AKS ship one). On EKS, set this to the
   # class you created in Cluster Prep.

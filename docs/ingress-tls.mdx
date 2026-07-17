@@ -3,9 +3,9 @@ title: Ingress & TLS
 description: Expose BoltMCP publicly. Reference setup with NGINX Ingress Controller and automatic HTTPS certificates.
 ---
 
-The BoltMCP chart doesn't manage cluster ingress. It expects you to provision your own ingress / gateway / load balancer that terminates TLS and routes the BoltMCP hostnames to the in-cluster services.
+By default the BoltMCP chart doesn't manage cluster ingress. It expects you to provision your own ingress / gateway / load balancer that terminates TLS and routes the BoltMCP hostnames to the in-cluster services.
 
-If your platform team handles ingress, hand them the hostnames table below and skip the rest of this page. The walkthrough that follows is a reference setup using NGINX Ingress Controller, cert-manager, and Let's Encryt. Adapt it for your environment, or replace it entirely with whatever ingress your cluster already runs.
+If your platform team handles ingress, hand them the hostnames table below and skip the rest of this page. The walkthrough that follows is a reference setup using NGINX Ingress Controller, cert-manager, Let's Encrypt, and the chart-managed Ingress. Adapt it for your environment, or replace it entirely with whatever ingress your cluster already runs.
 
 ## What BoltMCP needs from your ingress
 
@@ -18,7 +18,7 @@ For every value of `global.domain` you set in `values-prod.yaml`, the chart conf
 | `server.<domain>` | `boltmcp-mcp-server` | 3001 |
 | `inspector.<domain>` | `boltmcp-mcp-inspector` | 6274 |
 
-If you've overridden any of `web.baseUrl`, `mcpServer.baseUrl`, `mcpInspector.baseUrl`, or `keycloak.hostname` in your values, mirror those changes in your ingress.
+If you've overridden any of `web.baseUrl`, `mcpServer.baseUrl`, `mcpInspector.baseUrl`, or `keycloak.hostname` in your values, mirror those changes in your ingress (the chart-managed Ingress picks them up automatically).
 
 One NGINX-specific annotation is commonly needed:
 
@@ -26,9 +26,11 @@ One NGINX-specific annotation is commonly needed:
 
 The equivalent setting exists on most ingress implementations; check your platform's docs.
 
-## Reference setup
+If you're authoring your own Ingress manifest rather than using the chart-managed one, the chart package's `examples/ingress` directory contains a reference manifest to start from.
 
-The rest of this page walks through one common setup: NGINX Ingress Controller, cert-manager for automatic TLS, and DNS-based routing. Skip if your cluster already has these.
+## Reference Ingress Setup
+
+The rest of this page walks through one common setup: NGINX Ingress Controller, DNS-based routing, and the chart-managed Ingress tying them together, followed by cert-manager for automatic TLS in [Reference TLS Setup](#reference-tls-setup). Skip the controller and cert-manager steps if your cluster already has them.
 
 ### Install NGINX Ingress Controller
 
@@ -37,7 +39,7 @@ helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
 ```
 
-<Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
+<Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS', 'Docker Desktop']}>
 <Tab value="GKE">
 ```bash
 helm install ingress-nginx ingress-nginx/ingress-nginx \
@@ -69,6 +71,13 @@ helm install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.service.externalTrafficPolicy=Local
 ```
 </Tab>
+<Tab value="Docker Desktop">
+```bash
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  --namespace ingress-nginx \
+  --create-namespace
+```
+</Tab>
 </Tabs>
 
 Wait for the external IP:
@@ -79,7 +88,7 @@ kubectl get svc ingress-nginx-controller -n ingress-nginx -w
 
 Expected output:
 
-<Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
+<Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS', 'Docker Desktop']}>
 <Tab value="GKE">
 ```
 NAME                       TYPE           CLUSTER-IP    EXTERNAL-IP     PORT(S)                      AGE
@@ -98,7 +107,17 @@ NAME                       TYPE           CLUSTER-IP    EXTERNAL-IP     PORT(S) 
 ingress-nginx-controller   LoadBalancer   xx.x.xxx.xx   x.xxx.xxx.xxx   80:32695/TCP,443:30691/TCP   2m8s
 ```
 </Tab>
+<Tab value="Docker Desktop">
+```
+NAME                       TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller   LoadBalancer   xx.xx.xxx.xx   xxx.xx.x.x    80:32127/TCP,443:31751/TCP   7s
+```
+</Tab>
 </Tabs>
+
+<Callout type="info">
+Installing locally (e.g. Docker Desktop)? Skip to [Enable the Chart-managed Ingress](#enable-the-chart-managed-ingress).
+</Callout>
 
 ### Reserve a Stable Address
 
@@ -237,6 +256,72 @@ done
 
 Each line should resolve to your load balancer - directly to the IP for **A** records, or to the load balancer hostname (and, below it, the IPs it points to) for **CNAME** records. Replace `<domain>` with your `global.domain` value.
 
+### Enable the Chart-managed Ingress
+
+Add an `ingress` block to your values file. The annotations differ depending on whether or not you're terminating TLS:
+
+<Tabs groupId="tls" items={['Remote HTTPS', 'Local HTTP']}>
+<Tab value="Remote HTTPS">
+```yaml title="config/values-prod.yaml"
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+```
+
+The `cert-manager.io/cluster-issuer` annotation points at the issuer you create in [Reference TLS Setup](#reference-tls-setup) below. Until that issuer exists the certificate stays pending, which is expected.
+</Tab>
+<Tab value="Local HTTP">
+```yaml title="config/values-local.yaml"
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+# Local install only (e.g. Docker Desktop): let in-cluster pods resolve the
+# public hostnames to the ingress so server-side OIDC discovery reaches
+# Keycloak. Set `ip` to the ingress controller's CLUSTER-IP.
+global:
+  hostAliases:
+    - ip: "<ingress-nginx-controller CLUSTER-IP>"
+      hostnames:
+        - web.boltmcp.local
+        - auth.boltmcp.local
+        - server.boltmcp.local
+        - inspector.boltmcp.local
+```
+
+For a local install, also add the browser-side hostnames to your workstation's `/etc/hosts`:
+
+```
+127.0.0.1 web.boltmcp.local auth.boltmcp.local server.boltmcp.local inspector.boltmcp.local
+```
+</Tab>
+</Tabs>
+
+<Callout>
+    The chart's Ingress follows `global.tls.enabled`: on an HTTPS install it covers all BoltMCP hostnames with the `boltmcp-tls` Secret (name configurable via `ingress.tls.secretName`); on a plain-HTTP install it omits TLS entirely.
+</Callout>
+
+Apply the change using the same chart version and values file as the install (re-export `HELM_REGISTRY_CONFIG` and `BOLTMCP_VERSION` first if you're in a new shell):
+
+```bash
+helm upgrade boltmcp \
+  oci://europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/charts/boltmcp \
+  --version ${BOLTMCP_VERSION} \
+  -n boltmcp \
+  -f ./config/values-prod.yaml \
+  --timeout 15m
+```
+
+## Reference TLS Setup
+
+These steps add automatic HTTPS to the chart-managed Ingress via cert-manager and Let's Encrypt. Skip this section entirely on a plain-HTTP install (`global.tls.enabled: false`), or if your cluster already terminates TLS in front of the ingress.
+
 ### Install cert-manager
 
 ```bash
@@ -289,76 +374,7 @@ kubectl get clusterissuer
 # READY should be True
 ```
 
-### Create the Ingress Resource
-
-```bash
-kubectl apply -f ./config/boltmcp-ingress.yaml
-```
-
-```yaml title="config/boltmcp-ingress.yaml" extract="true"
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: boltmcp-ingress
-  namespace: boltmcp
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-staging
-    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
-spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - web.boltmcp.example.com
-        - auth.boltmcp.example.com
-        - server.boltmcp.example.com
-        - inspector.boltmcp.example.com
-      secretName: boltmcp-tls
-  rules:
-    - host: web.boltmcp.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: boltmcp-web
-                port:
-                  number: 3000
-    - host: auth.boltmcp.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: boltmcp-keycloak
-                port:
-                  number: 8080
-    - host: server.boltmcp.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: boltmcp-mcp-server
-                port:
-                  number: 3001
-    - host: inspector.boltmcp.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: boltmcp-mcp-inspector
-                port:
-                  number: 6274
-```
-
-The `proxy-buffer-size` annotation is required for Keycloak's large authentication headers.
-
-Watch certificate provisioning:
+With the staging issuer in place, the certificate referenced by the chart-managed Ingress (applied in [Enable the Chart-managed Ingress](#enable-the-chart-managed-ingress) above) can now be provisioned. Watch it:
 
 ```bash
 kubectl get certificates -n boltmcp -w
@@ -392,18 +408,18 @@ spec:
 
 Again, replace `your-email@example.com` with a monitored mailbox so you receive Let's Encrypt's renewal-failure warnings.
 
-Update the ingress annotation in `boltmcp-ingress.yaml` (edit the file on disk, not the live resource):
+Point the Ingress at the production issuer by updating the annotation in `values-prod.yaml`:
 
 ```yaml
-annotations:
-  cert-manager.io/cluster-issuer: letsencrypt-production
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
 ```
 
-Delete the staging certificate to trigger re-issuance:
+Run the same `helm upgrade` command as in the previous step, then delete the staging certificate Secret to trigger re-issuance:
 
 ```bash
 kubectl delete secret boltmcp-tls -n boltmcp
-kubectl apply -f ./config/boltmcp-ingress.yaml
 ```
 
 Verify the new certificate:
@@ -413,8 +429,4 @@ kubectl get certificates -n boltmcp -w
 # Wait for READY = True
 ```
 
-Your browser should now show a trusted certificate without security warnings.
-
-## Congratulations
-
-You've successfully exposed BoltMCP to the public internet with TLS-secured ingress. Your cluster is now reachable at your configured hostnames with valid, auto-renewing certificates.
+Congratulations! You've successfully exposed BoltMCP to the public internet with TLS-secured ingress. Your cluster is now reachable at your configured hostnames with valid, auto-renewing certificates. Your browser should now show a trusted certificate without security warnings.

@@ -3,23 +3,24 @@ title: Sign In
 description: Retrieve your SSO login credentials and sign in to the BoltMCP dashboard, docs, and Keycloak admin console.
 ---
 
-Once you've installed BoltMCP and set up ingress, run this script to retrieve your SSO login credentials:
+Once you've installed BoltMCP and set up ingress, run this script to retrieve your SSO login credentials. It reads the URLs straight from the deployed web workload, so it prints the right scheme and hostnames whatever your values (`global.domain`, `global.tls.enabled`, or any explicit overrides):
 
 ```bash title="get-login-details.sh" extract="true" bucket="deny"
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ $# -lt 1 ] || [ -z "$1" ]; then
-  echo "Usage: $0 <GLOBAL_DOMAIN>" >&2
-  echo "Please provide your global.domain, e.g. boltmcp.example.com" >&2
-  exit 1
-fi
+env_of() {
+  kubectl get deployment boltmcp-web -n boltmcp \
+    -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name=='$1')].value}"
+}
 
-GLOBAL_DOMAIN=$1
+WEB_BASE_URL=$(env_of WEB_BASE_URL)
+OIDC_ISSUER_URL=$(env_of OIDC_ISSUER_URL)
+KEYCLOAK_BASE_URL=${OIDC_ISSUER_URL%/realms/boltmcp}
 
-echo "BoltMCP dashboard:    https://web.${GLOBAL_DOMAIN}"
-echo "BoltMCP docs:         https://web.${GLOBAL_DOMAIN}/docs"
-echo "Keycloak admin:       https://auth.${GLOBAL_DOMAIN}/admin/boltmcp/console/"
+echo "BoltMCP dashboard:    ${WEB_BASE_URL}"
+echo "BoltMCP docs:         ${WEB_BASE_URL}/docs"
+echo "Keycloak admin:       ${KEYCLOAK_BASE_URL}/admin/boltmcp/console/"
 echo "Username:             boltmcp_admin"
 printf "Password:             "
 kubectl get secret boltmcp-auth -n boltmcp \
@@ -64,7 +65,7 @@ MCP clients such as Claude don't need a pre-configured client: they register the
 Everything related to BoltMCP lives in the `boltmcp` Keycloak realm, including the clients above and the `boltmcp_admin` user.
 
 <Callout type="warning">
-  The admin console base URL e.g. `https://auth.<global.domain>` automatically redirects to the master realm, not the BoltMCP realm. Use the link in the BoltMCP dashboard sidebar to open the BoltMCP realm.
+  The admin console base URL (e.g. `https://auth.<global.domain>`, or `http://` on a plain-HTTP install) automatically redirects to the master realm, not the BoltMCP realm. Use the link in the BoltMCP dashboard sidebar to open the BoltMCP realm.
 </Callout>
 
 For an evaluation deployment you shouldn't need access to the `master` realm. But for completeness, here are the master realm admin credentials:

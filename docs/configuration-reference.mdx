@@ -40,9 +40,22 @@ description: Complete reference for all configurable values of the BoltMCP Helm 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `global.domain` | string | `""` | Apex domain that hosts BoltMCP. Used to derive per-service hostnames as `web.<domain>`, `auth.<domain>`, `server.<domain>`, `inspector.<domain>`. Required unless every per-service URL/hostname override is set explicitly. |
+| `global.hostAliases` | array | `[]` | hostAliases injected into every BoltMCP pod. Use when the public BoltMCP hostnames don't resolve from inside the cluster (split-horizon DNS, local installs) so in-cluster OIDC discovery can reach Keycloak. |
 | `global.imagePullSecrets` | array | `[{"name":"boltmcp-pull-secret"}]` | Image pull secrets for private registries. Matches the Secret name created in cluster prep. Set to [] if your images come from a registry that doesn't require auth. |
 | `global.imageRegistry` | string | `"europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/images"` | Default image registry for BoltMCP images |
 | `global.storageClass` | string | `""` | Storage class for all BoltMCP persistent volumes. Empty uses the cluster default (fine on GKE/AKS). On EKS set it to a class you created. Overridable per-volume by database.persistence.storageClass. |
+| `global.tls.enabled` | bool | `true` | Whether the public BoltMCP URLs are served over HTTPS. Declares the scheme the workloads advertise and expect — it does not provision TLS itself; certificates and termination remain the job of your ingress / load balancer (with the chart-managed Ingress, of cert-manager via ingress.annotations). Single source of the scheme for every derived URL (web/server/inspector base URLs, the Keycloak external URL, the OIDC issuer) and for whether the chart-managed Ingress carries a tls section. Set false only for evaluation installs served over plain HTTP. Explicit overrides such as web.baseUrl and oidc.issuerUrl always win, scheme included. |
+
+## ingress
+
+Optional chart-managed Ingress. Disabled by default: bring your own ingress / gateway / load balancer instead (see examples/ingress in the chart for a reference manifest).
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ingress.annotations` | object | `{}` | Annotations for the Ingress. Controller- and cert-manager-specific settings go here. On ingress-nginx you almost always want nginx.ingress.kubernetes.io/proxy-buffer-size: "128k" (required for Keycloak's large auth headers) and cert-manager.io/cluster-issuer for TLS certificates; on plain-HTTP installs add nginx.ingress.kubernetes.io/ssl-redirect: "false". |
+| `ingress.className` | string | `""` | IngressClass name (spec.ingressClassName). Empty omits the field so the cluster default class applies. |
+| `ingress.enabled` | bool | `false` | Create a single Ingress routing the public BoltMCP hostnames (derived from global.domain / the per-service baseUrl overrides, so they can never drift from the URLs the services advertise) to the in-cluster services. |
+| `ingress.tls.secretName` | string | `"boltmcp-tls"` | Name of the TLS Secret covering all BoltMCP hostnames (created by cert-manager when the cluster-issuer annotation is set). The Ingress carries a tls section only when global.tls.enabled is true. |
 
 ## keycloak
 
@@ -55,7 +68,7 @@ description: Complete reference for all configurable values of the BoltMCP Helm 
 | `keycloak.image.repository` | string | `"quay.io/keycloak/keycloak"` | Keycloak image |
 | `keycloak.image.tag` | string | `"26.6.4-1"` | Keycloak image tag |
 | `keycloak.nodeSelector` | object | `{}` | Node selector |
-| `keycloak.production.enabled` | bool | `true` | Run in production mode (start vs start-dev). Set false only for evaluation installs without an Ingress / TLS-terminating proxy |
+| `keycloak.production.enabled` | bool | `true` | Run in production mode (start vs start-dev). Production mode works over plain HTTP behind a proxy (the chart sets the proxy-headers env); set false only for evaluation installs with no ingress / reverse proxy in front of Keycloak at all |
 | `keycloak.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
 | `keycloak.service.healthPort` | int | `9000` | Health check port |
 | `keycloak.service.port` | int | `8080` | Service port |
@@ -67,7 +80,7 @@ description: Complete reference for all configurable values of the BoltMCP Helm 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `mcpInspector.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
-| `mcpInspector.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://inspector.<global.domain>` |
+| `mcpInspector.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://inspector.<global.domain>` (http when global.tls.enabled is false) |
 | `mcpInspector.enabled` | bool | `true` | Enable MCP Inspector |
 | `mcpInspector.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
 | `mcpInspector.image.repository` | string | `"ghcr.io/modelcontextprotocol/inspector"` | Image repository |
@@ -84,7 +97,7 @@ description: Complete reference for all configurable values of the BoltMCP Helm 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `mcpServer.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
-| `mcpServer.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://server.<global.domain>` |
+| `mcpServer.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://server.<global.domain>` (http when global.tls.enabled is false) |
 | `mcpServer.extraEnv` | array | `[]` | Additional environment variables |
 | `mcpServer.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
 | `mcpServer.image.repository` | string | `""` | Image repository (defaults to global.imageRegistry/boltmcp-mcp-server) |
@@ -110,7 +123,7 @@ description: Complete reference for all configurable values of the BoltMCP Helm 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `oidc.adminUser.email` | string | `""` | Required. Email for the first user in the boltmcp Keycloak realm. Provisioned on first install via --import-realm (username boltmcp_admin, firstName Admin, emailVerified true, granted realm-management/realm-admin). Password lives in the auth Secret as boltmcp-admin-password. |
-| `oidc.issuerUrl` | string | `""` | OIDC issuer URL. If empty, defaults to `https://<keycloak.hostname>/realms/boltmcp` |
+| `oidc.issuerUrl` | string | `""` | OIDC issuer URL. If empty, defaults to `https://<keycloak.hostname>/realms/boltmcp` (http when global.tls.enabled is false) |
 | `oidc.mcpServer.clientId` | string | `"boltmcp-mcp-server"` | MCP Server client ID (secret: mcp-server-client-secret) |
 | `oidc.mcpServerToRestApi.clientId` | string | `"boltmcp-mcp-server-to-rest-api"` | Client used by the MCP server to obtain user tokens for the REST API (secret: mcp-server-to-rest-api-client-secret). PKCE-aware, audience-mapped to REST_API_BASE_URL. |
 | `oidc.provider` | string | `"keycloak"` | OIDC provider type |
@@ -175,7 +188,7 @@ Names of user-managed Kubernetes Secrets the chart reads. The chart never create
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `web.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
-| `web.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://web.<global.domain>` |
+| `web.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://web.<global.domain>` (http when global.tls.enabled is false) |
 | `web.extraEnv` | array | `[]` | Additional environment variables |
 | `web.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
 | `web.image.repository` | string | `""` | Image repository (defaults to global.imageRegistry/boltmcp-web) |
