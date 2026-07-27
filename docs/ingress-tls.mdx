@@ -18,7 +18,7 @@ For every value of `global.domain` you set in `values-prod.yaml`, the chart conf
 | `server.<domain>` | `boltmcp-mcp-server` | 3001 |
 | `inspector.<domain>` | `boltmcp-mcp-inspector` | 6274 |
 
-If you've overridden any of `web.baseUrl`, `mcpServer.baseUrl`, `mcpInspector.baseUrl`, or `keycloak.hostname` in your values, mirror those changes in your ingress (the chart-managed Ingress picks them up automatically).
+If you've overridden any of `web.baseUrl`, `mcpServer.baseUrl`, `mcpInspector.baseUrl`, or `keycloak.baseUrl` in your values, mirror those changes in your ingress (the chart-managed Ingress picks them up automatically).
 
 One NGINX-specific annotation is commonly needed:
 

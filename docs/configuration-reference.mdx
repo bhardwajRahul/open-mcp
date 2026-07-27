@@ -44,7 +44,7 @@ description: Complete reference for all configurable values of the BoltMCP Helm 
 | `global.imagePullSecrets` | array | `[{"name":"boltmcp-pull-secret"}]` | Image pull secrets for private registries. Matches the Secret name created in cluster prep. Set to [] if your images come from a registry that doesn't require auth. |
 | `global.imageRegistry` | string | `"europe-west2-docker.pkg.dev/boltmcp-platform/boltmcp-alpha/images"` | Default image registry for BoltMCP images |
 | `global.storageClass` | string | `""` | Storage class for all BoltMCP persistent volumes. Empty uses the cluster default (fine on GKE/AKS). On EKS set it to a class you created. Overridable per-volume by database.persistence.storageClass. |
-| `global.tls.enabled` | bool | `true` | Whether the public BoltMCP URLs are served over HTTPS. Declares the scheme the workloads advertise and expect — it does not provision TLS itself; certificates and termination remain the job of your ingress / load balancer (with the chart-managed Ingress, of cert-manager via ingress.annotations). Single source of the scheme for every derived URL (web/server/inspector base URLs, the Keycloak external URL, the OIDC issuer) and for whether the chart-managed Ingress carries a tls section. Set false only for evaluation installs served over plain HTTP. Explicit overrides such as web.baseUrl and oidc.issuerUrl always win, scheme included. |
+| `global.tls.enabled` | bool | `true` | Whether the public BoltMCP URLs are served over HTTPS. Declares the scheme the workloads advertise and expect — it does not provision TLS itself; certificates and termination remain the job of your ingress / load balancer (with the chart-managed Ingress, of cert-manager via ingress.annotations). Single source of the scheme for every derived URL (web/server/inspector/Keycloak base URLs, the OIDC issuer) and for whether the chart-managed Ingress carries a tls section. Set false only for evaluation installs served over plain HTTP. Explicit overrides such as web.baseUrl and keycloak.baseUrl always win, scheme included. |
 
 ## ingress
 
@@ -62,8 +62,8 @@ Optional chart-managed Ingress. Disabled by default: bring your own ingress / ga
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `keycloak.affinity` | object | `{}` | Affinity rules. Pass-through, not strictly validated. |
+| `keycloak.baseUrl` | string | `""` | Base URL. If empty, defaults to `https://auth.<global.domain>` (http when global.tls.enabled is false). The OIDC issuer is `<baseUrl>/realms/boltmcp` |
 | `keycloak.enabled` | bool | `true` | Enable Keycloak deployment |
-| `keycloak.hostname` | string | `""` | Explicit hostname. If empty, defaults to `auth.<global.domain>` |
 | `keycloak.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
 | `keycloak.image.repository` | string | `"quay.io/keycloak/keycloak"` | Keycloak image |
 | `keycloak.image.tag` | string | `"26.6.4-1"` | Keycloak image tag |
@@ -123,7 +123,6 @@ Optional chart-managed Ingress. Disabled by default: bring your own ingress / ga
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `oidc.adminUser.email` | string | `""` | Required. Email for the first user in the boltmcp Keycloak realm. Provisioned on first install via --import-realm (username boltmcp_admin, firstName Admin, emailVerified true, granted realm-management/realm-admin). Password lives in the auth Secret as boltmcp-admin-password. |
-| `oidc.issuerUrl` | string | `""` | OIDC issuer URL. If empty, defaults to `https://<keycloak.hostname>/realms/boltmcp` (http when global.tls.enabled is false) |
 | `oidc.mcpServer.clientId` | string | `"boltmcp-mcp-server"` | MCP Server client ID (secret: mcp-server-client-secret) |
 | `oidc.mcpServerToRestApi.clientId` | string | `"boltmcp-mcp-server-to-rest-api"` | Client used by the MCP server to obtain user tokens for the REST API (secret: mcp-server-to-rest-api-client-secret). PKCE-aware, audience-mapped to REST_API_BASE_URL. |
 | `oidc.provider` | string | `"keycloak"` | OIDC provider type |
