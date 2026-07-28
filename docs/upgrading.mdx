@@ -6,7 +6,7 @@ description: Upgrade BoltMCP to a new chart release with helm upgrade.
 To deploy a new release, bump `BOLTMCP_VERSION` and run `helm upgrade` with your values file:
 
 ```bash
-export BOLTMCP_VERSION=0.3.0
+export BOLTMCP_VERSION=0.3.2
 export HELM_REGISTRY_CONFIG="$PWD/keys/boltmcp-key.json"
 
 helm upgrade boltmcp \
@@ -45,6 +45,16 @@ The `boltmcp-migrate-core` and `boltmcp-seed` pods created by the post-upgrade h
 kubectl logs -n boltmcp <pod-name>
 kubectl describe pod -n boltmcp <pod-name>
 ```
+
+## Check the Vault Seal Status
+
+If the upgrade caused the Vault pod to restart, and auto-unseal isn't configured, it will come back sealed. Check the `Sealed` status with:
+
+```bash
+kubectl exec -n boltmcp deploy/boltmcp-vault -- vault status
+```
+
+If it reads `true`, [unseal Vault again](./vault-secret-store), or configure [auto-unseal](./vault-auto-unseal) to avoid the manual step on future restarts.
 
 ## Values-Only Changes
 
