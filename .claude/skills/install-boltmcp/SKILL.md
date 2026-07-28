@@ -136,30 +136,17 @@ Don't hesitate to ask the user along the way if you need any extra info or decis
 
 # Upgrade BoltMCP
 
+Read the docs on upgrading as well as the relevant values yaml in `./config/`, then ask the following questions:
+
 ## Ask questions to gather context
 
 1. **Cluster name** — where BoltMCP is installed. Offer multiple choice from the list of clusters above if present, plus "Other".
 2. **Helm release name** — defaults to `boltmcp`.
 3. **Namespace** — defaults to `boltmcp`.
-4. **Target chart version** — ask the user, or offer to look up the latest.
+4. **Target chart version** — defaults to the version from the upgrading docs.
+5. If the values file contains stale/placeholder values, ask questions to get the necessary values.
 
 If the user isn't sure of the release or namespace, run `helm list -A`.
-
-## Clarify how values should be handled
-
-**Default to "Replace from file"** — it's the approach the upgrading docs recommend, and the only one that survives schema changes between chart versions.
-
-- **Replace from file (default):** `helm upgrade ... -f values-prod.yaml`. The new chart's `values.yaml` provides the base; your file overlays it. Previous in-cluster values are NOT consulted. Make sure your file contains every override you need.
-- **Merge:** `helm upgrade ... --reuse-values -f values.yaml`. Previous in-cluster values are the base; your file overlays. **Avoid this when bumping chart versions** — old values may contain fields the new schema rejects, and the upgrade will fail validation before applying anything.
-- **Reset to chart defaults:** `helm upgrade ... --reset-values`. Drops all custom values. Rarely correct; confirm explicitly.
-
-If the user is on a chart version older than the target, read the upgrading docs page for the relevant gotchas (schema migrations, helm-managed→user-managed resource transitions, stuck `pending-upgrade` recovery) before starting.
-
-## Dry run first
-
-Before applying, run the same command with `--dry-run=client` and show the user the rendered manifests or any schema errors. Only proceed once they've confirmed it looks right.
-
-Then follow the steps in the upgrading docs page, substituting the user's values for `RELEASE`, `NAMESPACE`, and `BOLTMCP_VERSION`. After upgrade, check rollout status and restart any deployments whose consumed Secrets/ConfigMaps changed but weren't auto-rolled.
 
 # Uninstall BoltMCP
 
