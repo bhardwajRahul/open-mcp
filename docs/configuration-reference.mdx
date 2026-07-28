@@ -66,7 +66,7 @@ Optional chart-managed Ingress. Disabled by default: bring your own ingress / ga
 | `keycloak.enabled` | bool | `true` | Enable Keycloak deployment |
 | `keycloak.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
 | `keycloak.image.repository` | string | `"quay.io/keycloak/keycloak"` | Keycloak image |
-| `keycloak.image.tag` | string | `"26.6.4-1"` | Keycloak image tag |
+| `keycloak.image.tag` | string | `"26.7.0-1"` | Keycloak image tag |
 | `keycloak.nodeSelector` | object | `{}` | Node selector |
 | `keycloak.production.enabled` | bool | `true` | Run in production mode (start vs start-dev). Production mode works over plain HTTP behind a proxy (the chart sets the proxy-headers env); set false only for evaluation installs with no ingress / reverse proxy in front of Keycloak at all |
 | `keycloak.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
