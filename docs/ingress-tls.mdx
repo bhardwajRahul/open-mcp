@@ -20,11 +20,14 @@ For every value of `global.domain` you set in `values-prod.yaml`, the chart conf
 
 If you've overridden any of `web.baseUrl`, `mcpServer.baseUrl`, `mcpInspector.baseUrl`, or `keycloak.baseUrl` in your values, mirror those changes in your ingress (the chart-managed Ingress picks them up automatically).
 
-One NGINX-specific annotation is commonly needed:
+Two NGINX-specific annotations matter:
 
-- `nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"` - required for Keycloak's large authentication headers.
+- `nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"` - required for Keycloak's large authentication headers. NGINX's own default is 4k, which truncates them and breaks every login with `upstream sent too big header`.
+- `nginx.ingress.kubernetes.io/proxy-body-size: "10m"` - caps API spec uploads. NGINX's own default is 1m, which rejects larger specs with `413 Request Entity Too Large`.
 
-The equivalent setting exists on most ingress implementations; check your platform's docs.
+Both are BoltMCP requirements rather than site preferences, so **the chart-managed Ingress applies them for you** - don't repeat them in your values file. You only set them explicitly to choose a different limit, or when you're authoring your own Ingress manifest. To change one, set the same key in `ingress.annotations`: your value replaces the chart default, and any other annotations you supply are merged alongside it.
+
+The equivalent settings exist on most ingress implementations; check your platform's docs.
 
 If you're authoring your own Ingress manifest rather than using the chart-managed one, the chart package's `examples/ingress` directory contains a reference manifest to start from.
 
@@ -268,7 +271,6 @@ ingress:
   className: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-staging
-    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
 ```
 
 The `cert-manager.io/cluster-issuer` annotation points at the issuer you create in [Reference TLS Setup](#reference-tls-setup) below. Until that issuer exists the certificate stays pending, which is expected.
@@ -279,7 +281,6 @@ ingress:
   enabled: true
   className: nginx
   annotations:
-    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
 
 # Local install only (e.g. Docker Desktop): let in-cluster pods resolve the
