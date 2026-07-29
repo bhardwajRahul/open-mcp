@@ -186,12 +186,27 @@ Common causes:
 
 ### Large Header Errors
 
-If Keycloak produces "upstream sent too big header" errors, increase the buffer:
+If Keycloak produces "upstream sent too big header" errors, the auth headers exceed the ingress buffer. The chart-managed Ingress allows 128k by default; raise it in your values file:
 
 ```yaml
-annotations:
-  nginx.ingress.kubernetes.io/proxy-buffer-size: "256k"
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "256k"
 ```
+
+If you run your own Ingress manifest rather than the chart-managed one, set the same annotation there - without it NGINX applies a 4k default.
+
+### 413 Errors Uploading an API Spec
+
+If importing an OpenAPI spec from the **APIs** page fails with `413 Request Entity Too Large`, the file exceeds the ingress body-size limit. The chart-managed Ingress allows 10 MB by default; raise it in your values file:
+
+```yaml
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+```
+
+If you run your own Ingress manifest rather than the chart-managed one, set the same annotation there - without it NGINX applies a 1 MB default. Note that NGINX buffers the whole upload before forwarding it, so very large values increase memory and disk use on the ingress controller.
 
 ## Database lost+found Error
 
