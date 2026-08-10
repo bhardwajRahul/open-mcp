@@ -22,7 +22,7 @@ BoltMCP runs on any conformant Kubernetes cluster (v1.28+). Pick the tier that m
 The cluster-creation commands below provision the **evaluation** tier (a single small node) and are intended for demos and exploration only. For production deployments, increase the node count and machine type to match an appropriate tier from the table above.
 
 <Callout type="info">
-Make sure you'rve logged into the relevant CLI (`gcloud auth login` / `aws configure` / `az login`) before running these commands.
+Make sure you've logged into the relevant CLI (`gcloud auth login` / `aws configure` / `az login`) before running these commands.
 </Callout>
 
 <Tabs groupId="cloud" items={['GKE', 'EKS', 'AKS']}>
@@ -74,7 +74,7 @@ aws eks update-kubeconfig \
 ```
 
 <Callout>
-    kubectl should get connected automatically if the cluster created succcessfully, but the command above is required after fixing a partial or failed run.
+    kubectl should get connected automatically if the cluster created successfully, but the command above is required after fixing a partial or failed run.
 </Callout>
 </Tab>
 <Tab value="AKS">

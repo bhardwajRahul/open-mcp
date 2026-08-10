@@ -140,6 +140,19 @@ gcloud compute addresses create boltmcp-ingress-ip \
   --addresses $CURRENT_IP \
   --region $REGION
 ```
+
+<Callout type="warn">
+Run straight after the `EXTERNAL-IP` first appears, this can fail with `Invalid value for field 'resource.address': ... Specified IP address is already reserved.` GKE holds the address while it finishes provisioning the load balancer. Wait a minute and re-run the same command - it succeeds once provisioning settles.
+</Callout>
+
+Confirm the address is reserved before moving on - until it is, the IP is still ephemeral and recreating the ingress-nginx Service would change it, invalidating the DNS records you create next:
+
+```bash
+gcloud compute addresses describe boltmcp-ingress-ip \
+  --region $REGION \
+  --format='value(address,status)'
+# Should print your EXTERNAL-IP and IN_USE
+```
 </Tab>
 <Tab value="EKS">
 The default `ingress-nginx` install provisions a **Classic ELB**, and its DNS hostname is **already stable for the life of the Service** - it survives pod, node, and controller restarts. There is nothing to reserve: note the hostname and point DNS at it with a **CNAME** in the next step.
