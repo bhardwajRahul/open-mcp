@@ -54,9 +54,10 @@ As well as the Keycloak defaults, the BoltMCP Keycloak realm should already cont
 - `boltmcp-mcp-server` - for the MCP servers to authenticate users and agents
 - `boltmcp-rest-api` - for the internal API to verify tokens
 
-In addition, one client is pre-configured to streamline your first server setup:
+In addition, two clients are pre-configured to streamline your first server setup:
 
 - `boltmcp-mcp-server-to-rest-api` - for your first MCP server to authenticate users with the internal API, so that Claude can use the API
+- `boltmcp-mcp-server-to-keycloak` - for the same server to authenticate users with the Keycloak Admin API, so that Claude can manage the realm
 
 MCP clients such as Claude don't need a pre-configured client: they register themselves via the realm's CIMD client policies when connecting.
 

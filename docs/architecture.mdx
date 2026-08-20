@@ -60,7 +60,7 @@ Each BoltMCP service connects as its own PostgreSQL login role scoped to a `bolt
 |---------|-----------|--------|--------|
 | Web | `boltmcp_web` | `boltmcp_core` | Read/write |
 | REST API | `boltmcp_rest_api` | `boltmcp_core` | Read/write |
-| MCP Servers | `boltmcp_mcp_server` | `boltmcp_core` | Read-only |
+| MCP Servers | `boltmcp_mcp_server` | `boltmcp_core` | Read-only + read/write on specific tables |
 | Migrations | `boltmcp_migrate_core` | `boltmcp_core` | Owner with full privileges |
 | Keycloak | `boltmcp_keycloak` | `boltmcp_keycloak` | Owner with full privileges |
 | Vault | `boltmcp_vault` | `boltmcp_vault` | Owner with full privileges |

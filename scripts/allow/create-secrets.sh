@@ -19,4 +19,5 @@ kubectl create secret generic ${RELEASE}-auth -n boltmcp \
   --from-literal=web-auth-secret="$(rand)" \
   --from-literal=keycloak-admin-password="$(rand)" \
   --from-literal=boltmcp-admin-password="$(rand)" \
-  --from-literal=mcp-inspector-proxy-auth-token="$(rand)"
+  --from-literal=mcp-inspector-api-token="$(rand)" \
+  --from-literal=mcp-server-upstream-oauth-secret="$(rand)"
