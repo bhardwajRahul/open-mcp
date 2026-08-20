@@ -28,7 +28,7 @@ description: Complete reference for all configurable values of the BoltMCP Helm 
 | `database.tolerations` | array | `[]` | Tolerations |
 | `database.users.keycloak.schema` | string | `"boltmcp_keycloak"` | Keycloak schema name |
 | `database.users.keycloak.username` | string | `"boltmcp_keycloak"` | Keycloak DB user (password: keycloak-password) |
-| `database.users.mcpServer.username` | string | `"boltmcp_mcp_server"` | MCP Server DB user, read-only on the core schema (password: mcp-server-password) |
+| `database.users.mcpServer.username` | string | `"boltmcp_mcp_server"` | MCP Server DB user, read-only on the core schema plus read/write on specific tables (password: mcp-server-password) |
 | `database.users.migrateCore.username` | string | `"boltmcp_migrate_core"` | Migration DB user — owns the core schema and is the only role that runs DDL/migrations (password: migrate-core-password) |
 | `database.users.restApi.username` | string | `"boltmcp_rest_api"` | REST API DB user, read/write on the core schema (password: rest-api-password) |
 | `database.users.vault.schema` | string | `"boltmcp_vault"` | Vault storage schema name |
@@ -84,10 +84,9 @@ Optional chart-managed Ingress. Disabled by default: bring your own ingress / ga
 | `mcpInspector.enabled` | bool | `true` | Enable MCP Inspector |
 | `mcpInspector.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
 | `mcpInspector.image.repository` | string | `"ghcr.io/modelcontextprotocol/inspector"` | Image repository |
-| `mcpInspector.image.tag` | string | `"0.21.1"` | Image tag |
+| `mcpInspector.image.tag` | string | `"2.2.0"` | Image tag |
 | `mcpInspector.nodeSelector` | object | `{}` | Node selector |
 | `mcpInspector.resources` | object | `{}` | CPU/memory resource limits and requests. Pass-through, not strictly validated. |
-| `mcpInspector.service.proxyPort` | int | `6277` | Proxy port |
 | `mcpInspector.service.type` | string | `"ClusterIP"` | Service type |
 | `mcpInspector.service.webPort` | int | `6274` | Web UI port |
 | `mcpInspector.tolerations` | array | `[]` | Tolerations |
@@ -124,7 +123,6 @@ Optional chart-managed Ingress. Disabled by default: bring your own ingress / ga
 |-----------|------|---------|-------------|
 | `oidc.adminUser.email` | string | `""` | Required. Email for the first user in the boltmcp Keycloak realm. Provisioned on first install via --import-realm (username boltmcp_admin, firstName Admin, emailVerified true, granted realm-management/realm-admin). Password lives in the auth Secret as boltmcp-admin-password. |
 | `oidc.mcpServer.clientId` | string | `"boltmcp-mcp-server"` | MCP Server client ID (secret: mcp-server-client-secret) |
-| `oidc.mcpServerToRestApi.clientId` | string | `"boltmcp-mcp-server-to-rest-api"` | Client used by the MCP server to obtain user tokens for the REST API (secret: mcp-server-to-rest-api-client-secret). PKCE-aware, audience-mapped to REST_API_BASE_URL. |
 | `oidc.provider` | string | `"keycloak"` | OIDC provider type |
 | `oidc.restApiResourceServer.clientId` | string | `"boltmcp-rest-api"` | Client used by the REST API to authenticate to Keycloak's introspection endpoint (secret: rest-api-resource-server-client-secret). |
 | `oidc.web.clientId` | string | `"boltmcp-web"` | Platform client ID (secret lives in the OIDC Secret as web-client-secret) |
@@ -151,7 +149,7 @@ Names of user-managed Kubernetes Secrets the chart reads. The chart never create
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `secrets.auth.name` | string | `""` | Name of the user-managed Secret holding auth tokens, the master-realm Keycloak admin password (keycloak-admin-password), the BoltMCP-realm first-user password (boltmcp-admin-password), and the MCP Inspector token. If empty, defaults to `<release>-auth`. |
+| `secrets.auth.name` | string | `""` | Name of the user-managed Secret holding auth tokens, the master-realm Keycloak admin password (keycloak-admin-password), the BoltMCP-realm first-user password (boltmcp-admin-password), the MCP Inspector token, and the MCP server's upstream-OAuth root secret (mcp-server-upstream-oauth-secret). If empty, defaults to `<release>-auth`. |
 | `secrets.database.name` | string | `""` | Name of the user-managed Secret holding database passwords. If empty, defaults to `<release>-database`. |
 | `secrets.oidc.name` | string | `""` | Name of the user-managed Secret holding OIDC client secrets. If empty, defaults to `<release>-oidc`. |
 

@@ -1,0 +1,52 @@
+---
+title: Migration Guide
+description: Breaking changes to apply before upgrading BoltMCP, listed by chart version.
+---
+
+Read this page before every [upgrade](./upgrading), and work through each section between the version you have installed and the version you are moving to. Everything here must be done **before** `helm upgrade` runs: a pod whose Deployment references a Secret key that does not exist yet never starts, and a values file carrying a removed key fails schema validation before Helm applies anything.
+
+To check which version you are on:
+
+```bash
+helm list -n boltmcp
+```
+
+## Set Variables
+
+Export the Helm release name and namespace so the commands below can be pasted verbatim. Both default to `boltmcp` — adjust if you installed under different names.
+
+```bash
+export RELEASE=boltmcp
+export NAMESPACE=boltmcp
+```
+
+## 0.4.x
+
+Two additional keys are now required in the [`boltmcp-auth`](./cluster-preparation#boltmcp-auth) Secret:
+
+| Key | Used for |
+|---|---|
+| `mcp-inspector-api-token` | API token guarding the MCP Inspector's own backend |
+| `mcp-server-upstream-oauth-secret` | Root secret for the MCP server's upstream-OAuth crypto keys (≥ 32 chars) |
+
+Add both with random values. A merge patch against `stringData` leaves the keys already in the Secret untouched:
+
+```bash
+rand() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-32; }
+
+kubectl patch secret ${RELEASE}-auth -n ${NAMESPACE} --type merge -p "{
+  \"stringData\": {
+    \"mcp-inspector-api-token\": \"$(rand)\",
+    \"mcp-server-upstream-oauth-secret\": \"$(rand)\"
+  }
+}"
+```
+
+Confirm both keys are present before upgrading:
+
+```bash
+kubectl get secret ${RELEASE}-auth -n ${NAMESPACE} \
+  -o go-template='{{range $k, $v := .data}}{{$k}}{{"\n"}}{{end}}'
+```
+
+The upgrade rolls the pods that consume these keys, so there is no separate restart to run afterwards.

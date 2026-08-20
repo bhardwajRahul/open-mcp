@@ -118,7 +118,8 @@ Assuming the default release name `boltmcp`, the secret names and their required
 | `web-auth-secret` | Session signing key for the web app (≥ 32 chars) |
 | `keycloak-admin-password` | Master-realm Keycloak operator password (break-glass admin-console login) |
 | `boltmcp-admin-password` | Password for the first user in the BoltMCP Keycloak realm |
-| `mcp-inspector-proxy-auth-token` | Proxy auth token |
+| `mcp-inspector-api-token` | API token guarding the MCP Inspector's own backend |
+| `mcp-server-upstream-oauth-secret` | Root secret for the MCP server's upstream-OAuth crypto keys (≥ 32 chars) |
 
 ### Create secrets manually
 
@@ -146,7 +147,8 @@ kubectl create secret generic ${RELEASE}-auth -n boltmcp \
   --from-literal=web-auth-secret="$(rand)" \
   --from-literal=keycloak-admin-password="$(rand)" \
   --from-literal=boltmcp-admin-password="$(rand)" \
-  --from-literal=mcp-inspector-proxy-auth-token="$(rand)"
+  --from-literal=mcp-inspector-api-token="$(rand)" \
+  --from-literal=mcp-server-upstream-oauth-secret="$(rand)"
 ```
 
 To retrieve a value later (assuming release name `boltmcp`):

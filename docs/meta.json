@@ -10,6 +10,7 @@
     "sign-in.mdx",
     "vault-secret-store.mdx",
     "---Maintenance---",
+    "migration-guide.mdx",
     "upgrading.mdx",
     "uninstall.mdx",
     "---Reference---",
