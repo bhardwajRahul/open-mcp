@@ -1,5 +1,5 @@
 RELEASE=boltmcp
-rand() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-32; }
+rand() { openssl rand -hex 32; }
 
 kubectl create secret generic ${RELEASE}-database -n boltmcp \
   --from-literal=superuser-password="$(rand)" \

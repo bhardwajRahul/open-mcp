@@ -118,7 +118,7 @@ Assuming the default release name `boltmcp`, the secret names and their required
 | `web-auth-secret` | Session signing key for the web app (≥ 32 chars) |
 | `keycloak-admin-password` | Master-realm Keycloak operator password (break-glass admin-console login) |
 | `boltmcp-admin-password` | Password for the first user in the BoltMCP Keycloak realm |
-| `mcp-inspector-api-token` | API token guarding the MCP Inspector's own backend |
+| `mcp-inspector-api-token` | Bearer token the MCP Inspector's own backend API expects |
 | `mcp-server-upstream-oauth-secret` | Root secret for the MCP server's upstream-OAuth crypto keys (≥ 32 chars) |
 
 ### Create secrets manually
@@ -127,7 +127,7 @@ Generate random values inline and create all three Secrets in one shot. This is 
 
 ```bash title="create-secrets.sh" extract="true" bucket="allow"
 RELEASE=boltmcp
-rand() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-32; }
+rand() { openssl rand -hex 32; }
 
 kubectl create secret generic ${RELEASE}-database -n boltmcp \
   --from-literal=superuser-password="$(rand)" \

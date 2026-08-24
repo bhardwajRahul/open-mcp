@@ -26,27 +26,36 @@ Two additional keys are now required in the [`boltmcp-auth`](./cluster-preparati
 
 | Key | Used for |
 |---|---|
-| `mcp-inspector-api-token` | API token guarding the MCP Inspector's own backend |
+| `mcp-inspector-api-token` | Bearer token the MCP Inspector's own backend API expects, and that boltmcp-web's "Open in Inspector" links carry |
 | `mcp-server-upstream-oauth-secret` | Root secret for the MCP server's upstream-OAuth crypto keys (≥ 32 chars) |
 
-Add both with random values. A merge patch against `stringData` leaves the keys already in the Secret untouched:
+<Callout type="warn">
+    `mcp-inspector-api-token` is not a network access control. The Inspector serves its own token to any browser that can load its page, so the token is only as private as the Inspector's hostname.
+</Callout>
+
+Generate both values into shell variables first, then patch. A merge patch against `stringData` leaves the keys already in the Secret untouched:
 
 ```bash
-rand() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-32; }
+INSPECTOR_TOKEN=$(openssl rand -hex 32)
+UPSTREAM_OAUTH_SECRET=$(openssl rand -hex 32)
 
 kubectl patch secret ${RELEASE}-auth -n ${NAMESPACE} --type merge -p "{
   \"stringData\": {
-    \"mcp-inspector-api-token\": \"$(rand)\",
-    \"mcp-server-upstream-oauth-secret\": \"$(rand)\"
+    \"mcp-inspector-api-token\": \"${INSPECTOR_TOKEN:?not generated}\",
+    \"mcp-server-upstream-oauth-secret\": \"${UPSTREAM_OAUTH_SECRET:?not generated}\"
   }
 }"
 ```
 
-Confirm both keys are present before upgrading:
+Confirm both keys are present and non-empty before upgrading:
 
 ```bash
 kubectl get secret ${RELEASE}-auth -n ${NAMESPACE} \
-  -o go-template='{{range $k, $v := .data}}{{$k}}{{"\n"}}{{end}}'
+  -o go-template='{{range $k, $v := .data}}{{$k}}={{len $v}}{{"\n"}}{{end}}'
 ```
+
+<Callout>
+    The number is the length of the base64-encoded value, not the character count of the secret.
+</Callout>
 
 The upgrade rolls the pods that consume these keys, so there is no separate restart to run afterwards.
